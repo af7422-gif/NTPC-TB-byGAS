@@ -1,0 +1,1469 @@
+<style>
+.inline-field {
+  display: inline-block;     /* 每組佔一塊，但能並排 */
+  margin-right: 16px;        /* 每組之間的間距 */
+  vertical-align: middle;
+}
+
+.inline-field label {
+  display: inline-block;     /* 跟 select 同一行 */
+  margin-right: 8px;
+  margin-bottom: 0;
+  vertical-align: middle;
+}
+
+.inline-field select.form-select {
+  display: inline-block !important; /* 強制覆蓋 Bootstrap 預設的 block */
+  width: auto;                       /* 不要佔滿整行 */
+  min-width: 160px;                  /* 你要的寬度 */
+  vertical-align: middle;
+}
+
+.exam-detail-link {
+  color: #1a73e8;             /* Google 常用連結藍 */
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.exam-detail-link:hover {
+  color: #155ab6;             /* hover 時加深 */
+}
+
+/* 表格標題列樣式 */
+#examTable thead th {
+  background-color: #cfe2ff;  /* 淡藍色背景 */
+  color: #002752;             /* 深藍字體 */
+  text-align: center;         /* 文字置中 */
+  vertical-align: middle;     /* 垂直置中 */
+  position: relative;
+}
+
+#examTable thead th .sort-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#examTable th.sortable {
+  cursor: pointer;
+}
+
+.question-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.question-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.question-title .mark-symbol {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.question-options label {
+  font-size: 1rem;
+  cursor: default;
+}
+
+.question-source {
+  text-align: right;
+  font-weight: bold;
+  margin-top: 8px;
+  color: #555;
+}
+
+#examBreadcrumb {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  text-align: center;
+}
+
+</style>
+
+<script>
+  let examRawRows = [];
+  let examViewRows = [];
+  let examChart = null;
+  const examStack = [];
+  let examCurrentLevel = "bySource";
+  function renderExamModule() {
+    // === 篩選列 ===
+    document.getElementById("dynamicFilterArea").innerHTML = `
+      <div class="d-flex align-items-center gap-4 flex-wrap">
+        <!-- 指標類別 -->
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold mb-0" style="min-width:80px; white-space:nowrap;">指標類別：</label>
+          <select id="examChartSelect" class="form-select form-select-sm" style="min-width:300px;">
+            <option value="bySource">各出處答對率</option>
+          </select>
+        </div>
+        <!-- 作答日區間 -->
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold mb-0" style="min-width:90px; white-space:nowrap;">作答日區間：</label>
+          <input type="date" id="examDateStart" class="form-control form-control-sm" style="max-width:160px;">
+          <span>～</span>
+          <input type="date" id="examDateEnd" class="form-control form-control-sm" style="max-width:160px;">
+        </div>
+        <button id="examBackPrevBtn" 
+                class="btn btn-outline-secondary btn-sm" 
+                style="display:none;">
+          回上一層
+        </button>
+        <!-- 返回最上層 -->
+        <button id="examBackTopBtn" 
+                class="btn btn-warning btn-sm" 
+                style="display:none;">
+          返回最上層
+        </button>
+      </div>
+
+
+      <div class="mt-3">
+        <!-- 答題對象 -->
+        <div class="inline-field">
+          <label for="targetSelect" class="fw-bold mb-0">答題對象：</label>
+          <select id="targetSelect" class="form-select form-select-sm">
+            <option value="all">🌐 全部</option>
+            <option value="personal">👤 個人</option>
+          </select>
+        </div>
+
+        <!-- 管理單位 -->
+        <div class="inline-field" id="unitRow" style="display:none;">
+          <label for="unitSelect" class="fw-bold mb-0">管理單位：</label>
+          <select id="unitSelect" class="form-select form-select-sm">
+            <option value="all">🌐 全部</option>
+          </select>
+        </div>
+
+        <!-- 承辦人 -->
+        <div class="inline-field" id="userRow" style="display:none;">
+          <label for="userSelect" class="fw-bold mb-0">承辦人：</label>
+          <select id="userSelect" class="form-select form-select-sm">
+            <option value="all">🌐 全部</option>
+          </select>
+        </div>
+      </div>
+
+
+      <div class="d-flex align-items-center gap-4 flex-wrap mt-3">
+        <!-- 排序依據 -->
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold mb-0" style="min-width:80px; white-space:nowrap;">排序依據：</label>
+          <select id="examSortBy" class="form-select form-select-sm" style="min-width:160px;">
+            <option value="metric">依指標</option>
+            <option value="count">依答題數</option>
+          </select>
+        </div>
+        <!-- 排序方式 -->
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold mb-0" style="min-width:80px; white-space:nowrap;">排序方式：</label>
+          <select id="examSortOrder" class="form-select form-select-sm" style="min-width:160px;">
+            <option value="desc">由大到小</option>
+            <option value="asc">由小到大</option>
+          </select>
+        </div>
+      </div>
+    `;
+
+    // === 圖表區 ===
+    document.getElementById("chartArea").innerHTML = `
+      <div class="bg-light" style="min-height:300px;">
+        <canvas id="examChart" style="width:100%; height:600px; display:block;"></canvas>
+      </div>
+    `;
+
+    // === 表格區 ===
+    document.getElementById("tableContent").innerHTML = `
+    <div class="mt-2" style="padding:16px; background:#fafafa; border-radius:12px;">
+      <!-- ✅ 筆數顯示區（樣式比照 chart_disposal） -->
+      <div id="tableInfo" 
+          class="text-end text-muted fw-semibold"
+          style="font-size:0.95rem; margin-bottom:6px;">
+      </div>
+
+      <div class="table-responsive" style="max-height:40vh; overflow:auto;">
+        <table id="examTable" class="table table-sm table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="text-align:center;">作答時間</th>
+              <th style="text-align:center;">作答題數</th>
+              <th style="text-align:center;">答對題數</th>
+              <th style="text-align:center;">是否合格</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    `;
+
+    initExamChartLogic();
+    resetExamToTop(); 
+    document.getElementById("descArea").innerText = descriptionText_exam();
+  }
+
+  // ✅ 組合麵包屑文字給圖表標題使用
+  function getExamChartTitle() {
+    const chartSelect = document.getElementById("examChartSelect");
+    const baseTitle = chartSelect?.selectedOptions?.[0]?.textContent?.trim() || "答題圖表";
+
+    // 若沒有下鑽，僅顯示主標題
+    if (!examStack || examStack.length === 0) return baseTitle;
+
+    // 比照 chart_disposal：顯示所有層的「key：value」
+    const crumbs = examStack
+      .map(lvl => {
+        const key = lvl.filter?.key || "";
+        const val = lvl.filter?.value || "";
+        if (key && val) return `${key}：${val}`;
+        return val || "";
+      })
+      .filter(Boolean); // 去除空層
+
+    // 組合麵包屑
+    return `${baseTitle} > ${crumbs.join(" > ")}`;
+  }
+
+
+  // 依目前選到的管理單位，重建承辦人名單（第一個永遠是 🌐 全部）
+  function updateUserOptionsForUnit() {
+    const unitSel = document.getElementById('unitSelect');
+    const userSel = document.getElementById('userSelect');
+    if (!unitSel || !userSel) return;
+
+    const selUnit = unitSel.value || 'all';
+
+    const aoa = cachedDisposalData?.examRecords || [];
+    if (aoa.length <= 1) {
+      userSel.innerHTML = `<option value="all">🌐 全部</option>`;
+      return;
+    }
+
+    const headers = aoa[0].map(h => String(h).trim());
+    const rows = aoa.slice(1).map(r => {
+      const o = {}; headers.forEach((h,i)=>o[h]=r[i]); return o;
+    });
+
+    const collator = new Intl.Collator('zh-Hant');
+
+    const userSet = new Set(
+      rows
+        .filter(r => {
+          // 若是選擇了特定單位就依單位過濾
+          if (selUnit !== 'all' && String(r['單位']||'').trim() !== selUnit) return false;
+          // 承辦人要排除「衛生局」
+          if (String(r['單位']||'').trim() === '衛生局') return false;
+          return true;
+        })
+        .map(r => String(r['用戶名稱']||'').trim())
+        .filter(v => v)   // 去空值
+    );
+    const users = Array.from(userSet).sort(collator.compare);
+
+    userSel.innerHTML = `<option value="all">🌐 全部</option>` +
+      users.map(u => `<option value="${u}">${u}</option>`).join('');
+  }
+
+  document.getElementById('chartModal').addEventListener('shown.bs.modal', () => {
+    examStack.length = 0;             // ✅ 清空堆疊
+    document.getElementById("examBackTopBtn").style.display = "none"; // ✅ 隱藏返回按鈕
+    renderExam();                     // ✅ 重新渲染頂層
+  });
+
+  //圖表說明
+  function descriptionText_exam() {
+    const select = document.getElementById('examChartSelect');  // ✅ 改這裡
+    const val = select ? select.value : 'bySource';
+
+    const baseIntro = "本圖表以『答題紀錄』資料為基礎，僅統計完成測驗的使用者資料。\n\n";
+
+    const descMap = {
+      bySource: "說明：統計各出處（章節）的平均答對率。",
+    };
+
+    return baseIntro + (descMap[val] || "");
+  }
+
+
+  function initExamChartLogic() {
+    // === 綁定圖表類別（只有改這個才會 reset） ===
+    document.getElementById("examChartSelect")?.addEventListener("change", resetExamToTop);
+
+    // === 其餘選項僅重新 render，不回頂層 ===
+    ["examDateStart", "examDateEnd", "examSortBy", "examSortOrder",
+    "targetSelect", "unitSelect", "userSelect"]
+    .forEach(id => {
+      document.getElementById(id)?.addEventListener("change", renderExam);
+    });
+
+    const targetSelect = document.getElementById("targetSelect");
+    const unitRow = document.getElementById("unitRow");
+    const userRow = document.getElementById("userRow");
+    const unitSel = document.getElementById("unitSelect");
+    const userSel = document.getElementById("userSelect");
+
+    // 如果使用者是衛生局，先建立管理單位/承辦人選單
+    if (getUserUnit() === "衛生局") {
+      fillUnitAndUserOptions();
+    }
+
+    // === 監聽返回最上層 ===
+    const backBtn = document.getElementById("examBackTopBtn");
+    if (backBtn) backBtn.addEventListener("click", resetExamToTop);
+
+    // === 🆕 綁定「回上一層」 ===
+    const backPrevBtn = document.getElementById("examBackPrevBtn");
+    if (backPrevBtn) {
+      backPrevBtn.addEventListener("click", () => {
+        if (examStack.length === 0) return;
+
+        // 🔹 移除最後一層（回上一層）
+        examStack.pop();
+
+        // 🔹 正確推算回到哪個層級
+        if (examStack.length === 0) {
+          examCurrentLevel = "bySource"; // 頂層
+        } else {
+          const lastDim = examStack.at(-1).dim;
+          if (lastDim === "bySource") {
+            examCurrentLevel = "byQuestion"; // 回題目層
+          } else if (lastDim === "byQuestion") {
+            examCurrentLevel = "byAnswer"; // 理論上不會用到
+          } else {
+            examCurrentLevel = "bySource";
+          }
+        }
+
+        // 🧩 若回到題目層（byQuestion），要重建題目聚合資料
+        if (examCurrentLevel === "byQuestion") {
+          const top = examStack.at(-1);
+          const source = top?.filter?.value || "";
+          const filteredRows = window.examFilteredRows || [];
+
+          const qData = cachedDisposalData?.questions || [];
+          if (qData.length > 1) {
+            const qHeaders = qData[0];
+            const idxSerial = qHeaders.indexOf("序號");
+            const idxSource = qHeaders.indexOf("出處");
+            const idxTitle = qHeaders.indexOf("題目");
+
+            const questionMap = new Map(
+              qData.slice(1)
+                .filter(r => String(r[idxSource]).trim() === source)
+                .map(r => [String(r[idxSerial]).trim(), String(r[idxTitle]).trim()])
+            );
+
+            const map = new Map();
+            filteredRows.forEach(r => {
+              try {
+                JSON.parse(r["答題內容"] || "[]").forEach(item => {
+                  const serial = String(item.序號 || "");
+                  if (item.出處 === source && questionMap.has(serial)) {
+                    if (!map.has(serial)) map.set(serial, { correct: 0, total: 0 });
+                    const acc = map.get(serial);
+                    acc.total++;
+                    if (item.是否答對) acc.correct++;
+                  }
+                });
+              } catch {}
+            });
+
+            examViewRows = [...map.entries()].map(([serial, { correct, total }]) => ({
+              serial,
+              title: questionMap.get(serial) || "(題目缺失)",
+              total,
+              rate: total ? correct / total : 0
+            }));
+          }
+        }
+
+        // 🔹 重新渲染圖表與表格
+        renderExam();
+      });
+    }
+
+    // === 綁定答題對象 ===
+    targetSelect.addEventListener("change", () => {
+      const userUnit = getUserUnit();
+
+      if (targetSelect.value === "personal") {
+        unitRow.style.display = "none";
+        userRow.style.display = "none";
+        unitSel.value = "all";
+        userSel.value = "all";
+      } else {
+        if (userUnit === "衛生局") {
+          unitRow.style.display = "";
+          userRow.style.display = "";
+        } else {
+          unitRow.style.display = "none";
+          userRow.style.display = "none";
+        }
+      }
+
+      // 🧩 切換答題對象時自動回頂層
+      resetExamToTop();
+    });
+
+    // === 綁定管理單位 ===
+    unitSel.addEventListener("change", () => {
+      updateUserOptionsForUnit();
+
+      // 🟢 若目前不在最上層（代表正在下鑽）→ 自動回頂層
+      if (examStack.length > 0 || examCurrentLevel !== "bySource") {
+        resetExamToTop();
+      } else {
+        renderExam();
+      }
+    });
+
+
+    // === 綁定承辦人 ===
+    userSel.addEventListener("change", renderExam);
+
+    // === 初始化顯示狀態 ===
+    if (targetSelect.value === "personal") {
+      unitRow.style.display = "none";
+      userRow.style.display = "none";
+    } else if (getUserUnit() !== "衛生局") {
+      unitRow.style.display = "none";
+      userRow.style.display = "none";
+    } else {
+      unitRow.style.display = "";
+      userRow.style.display = "";
+    }
+
+    // === 載入 examRecords ===
+    const aoa = cachedDisposalData.examRecords || [];
+    if (aoa.length > 1) {
+      const header = aoa[0];
+      examRawRows = aoa.slice(1).map(r => {
+        const o = {}; header.forEach((c, i) => (o[c] = r[i])); return o;
+      });
+    }
+
+    // === 預設日期區間 ===
+    const startInput = document.getElementById("examDateStart");
+    const endInput = document.getElementById("examDateEnd");
+    if (startInput && endInput) {
+      startInput.value = "2025-07-01";
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      endInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    // === 關閉圖表時清空 ===
+    document.getElementById("chartModal").addEventListener("hidden.bs.modal", () => {
+      examStack.length = 0;
+      examViewRows = [];
+      if (examChart) {
+        try {
+          examChart.config.options.onClick = null;
+          examChart.destroy();
+          examChart = null;
+        } catch (e) {
+          console.warn("examChart.destroy() 失敗：", e);
+        }
+      }
+    });
+
+    // === 首次渲染 ===
+    renderExam();
+  }
+
+
+  function renderExam() {
+    // === 讀取 UI 值 ===
+    const startInput = document.getElementById("examDateStart");
+    const endInput   = document.getElementById("examDateEnd");
+    const sortBy     = document.getElementById("examSortBy")?.value || "metric";
+    const sortOrder  = document.getElementById("examSortOrder")?.value || "desc";
+    const sel        = document.getElementById("examChartSelect")?.value || "bySource";
+    const target     = document.getElementById("targetSelect")?.value || "all";
+    const unitSel    = document.getElementById("unitSelect")?.value || "all";
+    const userSel    = document.getElementById("userSelect")?.value || "all";
+    const userUnit   = getUserUnit();
+    const isAdmin    = userUnit === "衛生局";
+    const sDate      = startInput?.value ? new Date(startInput.value) : null;
+    const eDate      = endInput?.value ? new Date(endInput.value) : null;
+
+    // === 取得目前層級 ===
+    const currentDim = examStack.length
+      ? examStack[examStack.length - 1].dim
+      : "top";
+
+    // === 日期轉換工具 ===
+    function toDateOnlyStr(dt) {
+      if (!(dt instanceof Date) || isNaN(dt)) return "";
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // === 篩選資料 ===
+    let filteredRows = examRawRows.filter(r => {
+      const d = new Date(r["提交時間"]);
+      if (isNaN(d)) return false;
+      const dStr = toDateOnlyStr(d);
+      if (sDate && dStr < toDateOnlyStr(sDate)) return false;
+      if (eDate && dStr > toDateOnlyStr(eDate)) return false;
+
+      const currentUser = document.getElementById("name")?.innerText.trim();
+
+      if (target === "personal") {
+        // 👤 個人：只看自己
+        if (r["用戶名稱"] !== currentUser) return false;
+      } else {
+        // 🌐 全部
+        if (isAdmin) {
+          // 衛生局：可依單位/承辦人篩
+          if (r["單位"] === "衛生局") return false;
+          if (unitSel !== "all" && r["單位"] !== unitSel) return false;
+          if (userSel !== "all" && r["用戶名稱"] !== userSel) return false;
+        } else {
+          // 🚀 非衛生局：看所有人，但排除衛生局的紀錄
+          if (r["單位"] === "衛生局") return false;
+          if (userSel !== "all" && r["用戶名稱"] !== userSel) return false;
+        }
+      }
+
+      return true;
+    });
+
+    // === 🩵 修正：若切換承辦人後仍停留在下層，要重建對應資料 ===
+    if (examCurrentLevel === "byQuestion") {
+      const top = examStack.at(-1);
+      const source = top?.filter?.value || "";
+      const qData = cachedDisposalData?.questions || [];
+      if (qData.length > 1) {
+        const qHeaders = qData[0];
+        const idxSerial = qHeaders.indexOf("序號");
+        const idxSource = qHeaders.indexOf("出處");
+        const idxTitle = qHeaders.indexOf("題目");
+
+        const questionMap = new Map(
+          qData.slice(1)
+            .filter(r => String(r[idxSource]).trim() === source)
+            .map(r => [String(r[idxSerial]).trim(), String(r[idxTitle]).trim()])
+        );
+
+        const map = new Map();
+        filteredRows.forEach(r => {
+          try {
+            JSON.parse(r["答題內容"] || "[]").forEach(item => {
+              const serial = String(item.序號 || "");
+              if (item.出處 === source && questionMap.has(serial)) {
+                if (!map.has(serial)) map.set(serial, { correct: 0, total: 0 });
+                const acc = map.get(serial);
+                acc.total++;
+                if (item.是否答對) acc.correct++;
+              }
+            });
+          } catch {}
+        });
+
+        examViewRows = [...map.entries()].map(([serial, { correct, total }]) => ({
+          serial,
+          title: questionMap.get(serial) || "(題目缺失)",
+          total,
+          rate: total ? correct / total : 0
+        }));
+      }
+    }
+
+    // === 🩵 修正：若停在 byAnswer 層，也要依篩選重建答題紀錄 ===
+    if (examCurrentLevel === "byAnswer") {
+      const serial = examStack.at(-1)?.filter?.value;
+      if (serial) {
+        const result = [];
+        filteredRows.forEach(r => {
+          try {
+            const arr = JSON.parse(r["答題內容"] || "[]");
+            const match = arr.find(item => String(item.序號) === serial);
+            if (match) {
+              result.push({
+                提交時間: r["提交時間"],
+                單位: r["單位"],
+                用戶名稱: r["用戶名稱"],
+                作答題數: r["作答題數"],
+                答對題數: r["答對題數"],
+                是否合格: r["是否合格"],
+                是否答對: !!match.是否答對,
+                答題內容: r["答題內容"]
+              });
+            }
+          } catch {}
+        });
+        examViewRows = result;
+      }
+    }
+
+    // === 下鑽篩選 ===
+    if (examStack.length > 0) {
+      const top = examStack[examStack.length - 1];
+      const fKey = top.filter?.key;
+      const fVal = top.filter?.value;
+      if (fKey === "出處" && fVal) {
+        filteredRows = filteredRows.filter(r => {
+          try {
+            const arr = JSON.parse(r["答題內容"] || "[]");
+            return arr.some(item => String(item.出處 || "") === fVal);
+          } catch {
+            return false;
+          }
+        });
+      }
+    }
+
+    // === 聚合資料（頂層才用 aggregate）===
+    const agg = (currentDim === "top")
+      ? aggregateForCurrentExam(sel, filteredRows, currentDim)
+      : null;
+
+    // === 繪圖 ===
+    if (examChart) examChart.destroy();
+    const canvas = document.getElementById("examChart");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    // 🟣 第三層：單題作答紀錄層（byAnswer）
+    if (examCurrentLevel === "byAnswer") {
+      // examViewRows 目前存的是該題所有作答紀錄
+      // 我們要統計每個考卷的作答結果 (一筆一人一卷)
+      const data = examViewRows || [];
+      const total = data.length;
+      const correct = data.filter(x => x.是否答對).length;
+      const rate = total ? correct / total : 0;
+
+      // ✅ 繪圖：雙 Y 軸 (bar=答題數, line=答對率)
+      examChart = new Chart(ctx, {
+        data: {
+          labels: [examStack.at(-1)?.filter?.title || "(題目)"],
+          datasets: [
+            {
+              type: "bar",
+              label: "答題數",
+              data: [total],
+              yAxisID: "y1",
+              backgroundColor: "rgba(54,162,235,0.6)"
+            },
+            {
+              type: "line",
+              label: "答對率(%)",
+              data: [rate * 100],
+              yAxisID: "y2",
+              borderColor: "#f1c40f",
+              backgroundColor: "#f1c40f",
+              borderWidth: 2,
+              tension: 0,
+              pointRadius: 4,
+              pointBackgroundColor: "#f1c40f",
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { 
+                display: true, 
+                text: "題目", 
+                font: { size: 14, weight: "bold" },
+                padding: { top: 14 } 
+              },
+              grid: { display: false },
+              ticks: { autoSkip: false, padding: 8 }
+            },
+            y1: {
+              type: "linear", position: "left", beginAtZero: true,
+              title: { display: true, text: "答題數" }
+            },
+            y2: {
+              type: "linear", position: "right", beginAtZero: true, max: 100,
+              title: { display: true, text: "答對率(%)" },
+              grid: { drawOnChartArea: false },
+              ticks: { callback: val => val + "%" }
+            }
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: getExamChartTitle(),
+              color: "#666666",
+              font: { size: 20, weight: "bold" },
+              align: "center",
+              padding: { top: 10, bottom: 20 }
+            },
+            tooltip: {
+              callbacks: {
+                title: () => [],
+                label: () => [
+                  `答題數：${total}`,
+                  `答對數：${correct}`,
+                  `答對率：${(rate * 100).toFixed(1)}%`
+                ]
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 🟡 第二層：題目序號層（byQuestion）
+    else if (examCurrentLevel === "byQuestion" || currentDim === "bySource") {
+      let pairs = [...examViewRows];
+      // 排序邏輯
+      if (sortBy === "metric") {
+        pairs.sort((a, b) =>
+          sortOrder === "asc" ? a.rate - b.rate : b.rate - a.rate
+        );
+      } else if (sortBy === "count") {
+        pairs.sort((a, b) =>
+          sortOrder === "asc" ? a.total - b.total : b.total - a.total
+        );
+      } else {
+        pairs.sort((a, b) => Number(a.serial) - Number(b.serial));
+      }
+
+      examChart = new Chart(ctx, {
+        data: {
+          labels: pairs.map(p => p.serial),
+          datasets: [
+            {
+              type: "bar",
+              label: "答題數",
+              data: pairs.map(p => p.total),
+              yAxisID: "y1",
+              backgroundColor: "rgba(54,162,235,0.6)"
+            },
+            {
+              type: "line",
+              label: "答對率(%)",
+              data: pairs.map(p => p.rate * 100),
+              yAxisID: "y2",
+              borderColor: "#f1c40f",
+              backgroundColor: "#f1c40f",
+              borderWidth: 2,
+              tension: 0,
+              pointRadius: 4,
+              pointBackgroundColor: "#f1c40f",
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { 
+                display: true, 
+                text: "題目序號", 
+                font: { size: 14, weight: "bold" },
+                padding: { top: 14 } 
+              },
+              grid: { display: false },
+              ticks: { autoSkip: false, padding: 8 }
+            },
+            y1: {
+              type: "linear", position: "left", beginAtZero: true,
+              title: { display: true, text: "答題數" }
+            },
+            y2: {
+              type: "linear", position: "right", beginAtZero: true, max: 100,
+              title: { display: true, text: "答對率(%)" },
+              grid: { drawOnChartArea: false },
+              ticks: { callback: val => val + "%" }
+            }
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: getExamChartTitle(),
+              color: "#666666",
+              font: { size: 20, weight: "bold" },
+              align: "center",
+              padding: { top: 10, bottom: 20 }
+            },
+            tooltip: {
+              callbacks: {
+                title: () => [],
+                label: (ctx) => {
+                  const idx = ctx.dataIndex;
+                  const item = pairs[idx];
+                  const rateVal = (item.rate * 100).toFixed(1);
+                  return [
+                    `題目：${item.title}`,
+                    `答題數：${item.total}`,
+                    `答對率：${rateVal}%`
+                  ];
+                }
+              }
+            }
+          },
+          onClick: (evt, elements) => {
+            if (!elements.length) return;
+            const idx = elements[0].index;
+            const clickedLabel = examChart.data.labels[idx];
+            handleExamBarClick(clickedLabel); // ✅ 改這裡
+          }
+        }
+      });
+    }
+
+    // 🟢 第一層：出處層（頂層）
+    else {
+      let combined = agg.labels.map((lab, i) => ({
+        label: lab,
+        asked: agg.counts[i],
+        rate: agg.rates[i]
+      }));
+      combined.sort((a, b) => {
+        let key = (sortBy === "metric") ? "rate" : "asked";
+        return (sortOrder === "asc") ? (a[key] - b[key]) : (b[key] - a[key]);
+      });
+      agg.labels = combined.map(o => o.label);
+      agg.counts = combined.map(o => o.asked);
+      agg.rates  = combined.map(o => o.rate);
+
+      examChart = new Chart(ctx, {
+        data: {
+          labels: agg.labels,
+          datasets: [
+            {
+              type: "bar",
+              label: "答題數",
+              data: agg.counts,
+              yAxisID: "y1",
+              backgroundColor: "rgba(54,162,235,0.6)"
+            },
+            {
+              type: "line",
+              label: "答對率(%)",
+              data: agg.rates.map(v => v * 100),
+              yAxisID: "y2",
+              borderColor: "#f1c40f",
+              backgroundColor: "#f1c40f",
+              borderWidth: 2,
+              tension: 0,
+              pointRadius: 4,
+              pointBackgroundColor: "#f1c40f",
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { 
+                display: true, 
+                text: "出處", 
+                font: { size: 14, weight: "bold" },
+                padding: { top: 14 } 
+              },
+              grid: { display: false },
+              ticks: { autoSkip: false, padding: 8 }
+            },
+            y1: {
+              type: "linear", position: "left", beginAtZero: true,
+              title: { display: true, text: "答題數" }
+            },
+            y2: {
+              type: "linear", position: "right", beginAtZero: true, max: 100,
+              title: { display: true, text: "答對率(%)" },
+              grid: { drawOnChartArea: false },
+              ticks: { callback: val => val + "%" }
+            }
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: getExamChartTitle(),
+              color: "#666666",
+              font: { size: 20, weight: "bold" },
+              align: "center",
+              padding: { top: 10, bottom: 20 }
+            }
+          },
+          onClick: (evt, elements) => {
+            if (!elements.length) return;
+            const idx = elements[0].index;
+            const clickedLabel = examChart.data.labels[idx];
+            handleExamBarClick(clickedLabel); // ✅ 改這裡
+          }
+        }
+      });
+    }
+
+    // ✅ 暫存當前篩選後的資料給下鑽用
+    window.examFilteredRows = filteredRows;
+
+    // === 表格部分（不動） ===
+    const thead = document.querySelector("#examTable thead");
+    if (thead && !thead.dataset.fixed) {
+      // 僅第一次設定表頭結構
+      const html = isAdmin
+        ? `
+          <tr>
+            <th class="sortable" data-key="提交時間">作答時間</th>
+            <th class="sortable" data-key="單位">單位</th>
+            <th class="sortable" data-key="用戶名稱">承辦人</th>
+            <th class="sortable" data-key="作答題數">作答題數</th>
+            <th class="sortable" data-key="答對題數">答對題數</th>
+            <th class="sortable" data-key="是否合格">是否合格</th>
+            <th id="colAnswerMark" class="sortable" data-key="是否答對" style="text-align:center; display:none;"></th>
+          </tr>`
+        : `
+          <tr>
+            <th class="sortable" data-key="提交時間">作答時間</th>
+            <th class="sortable" data-key="作答題數">作答題數</th>
+            <th class="sortable" data-key="答對題數">答對題數</th>
+            <th class="sortable" data-key="是否合格">是否合格</th>
+            <th id="colAnswerMark" class="sortable" data-key="是否答對" style="text-align:center; display:none;"></th>
+          </tr>`;
+      thead.innerHTML = html;
+      thead.dataset.fixed = "true"; // 標記：避免重建表頭
+    }
+
+    // ✅ 根據層級決定要顯示哪組資料
+    let tableRows = filteredRows;
+    if (examCurrentLevel === "byQuestion") {
+      tableRows = window.examFilteredRows || filteredRows;
+    } else if (examCurrentLevel === "byAnswer") {
+      tableRows = examViewRows || [];
+    }
+
+    // ✅ 更新筆數顯示
+    const infoEl = document.getElementById("tableInfo");
+    if (infoEl) infoEl.innerText = `共 ${tableRows.length} 筆`;
+
+    // === 控制【序號 XX】欄顯示與否 ===
+    const markTh = document.getElementById("colAnswerMark");
+    if (markTh) {
+      if (examCurrentLevel === "byAnswer") {
+        const serial = examStack.at(-1)?.filter?.value || "";
+        markTh.textContent = `【序號 ${serial}】是否答對`;
+        markTh.style.display = "";
+      } else {
+        markTh.textContent = "";
+        markTh.style.display = "none";
+      }
+    }
+
+    renderTableRows(tableRows);
+    bindTableSort(tableRows, isAdmin);
+
+    // === 控制按鈕顯示 ===
+    const backPrevBtn = document.getElementById("examBackPrevBtn");
+    if (backPrevBtn) {
+      backPrevBtn.style.display = examStack.length > 0 ? "" : "none";
+    }
+
+    const backTopBtn = document.getElementById("examBackTopBtn");
+    if (backTopBtn) {
+      backTopBtn.style.display = examStack.length > 0 ? "" : "none";
+    }
+
+  }
+
+  // === 統一聚合入口（比照 chart_disposal 架構） ===
+  function aggregateForCurrentExam(sel, rows, dim) {
+    // 🟢 各指標邏輯依照選單值決定
+    if (sel === "bySource") {
+      // 頂層：依出處統計
+      if (dim === "top") return aggregateExamBySource(rows);
+      // 下鑽：若已經在出處層 → 依題目聚合
+      if (dim === "bySource") return aggregateExamByQuestion(rows);
+    }
+
+    // 🟡 預留：未來可新增其他指標（例如依承辦人、單位、題型…）
+    // e.g.
+    // else if (sel === "byUser") {
+    //   if (dim === "top") return aggregateExamByUser(rows);
+    // }
+    // else if (sel === "byUnit") {
+    //   if (dim === "top") return aggregateExamByUnit(rows);
+    // }
+
+    // 🔸 預設：仍回傳「依出處答對率」
+    return aggregateExamBySource(rows);
+  }
+
+
+  // === 題目層的聚合 ===
+  function aggregateExamByQuestion(rows){
+    const map = new Map();
+    rows.forEach(r=>{
+      try{
+        JSON.parse(r["答題內容"]||"[]").forEach(i=>{
+          const s = String(i.序號||"");
+          if(!s) return;
+          if(!map.has(s)) map.set(s,{asked:0,correct:0});
+          const acc = map.get(s);
+          acc.asked++;
+          if(i.是否答對) acc.correct++;
+        });
+      }catch{}
+    });
+    const pairs=[...map.entries()].map(([s,v])=>[s,v.asked,v.asked?v.correct/v.asked:0]);
+    return {
+      labels:pairs.map(p=>p[0]),
+      counts:pairs.map(p=>p[1]),
+      rates:pairs.map(p=>p[2])
+    };
+  }
+
+  // === 統一下鑽控制器（完全交由 renderExam() 處理）===
+  function handleExamBarClick(clickedLabel) {
+    // 第一層 → 出處層
+    if (examCurrentLevel === "bySource") {
+      examStack.push({
+        dim: "bySource",
+        filter: { key: "出處", value: clickedLabel }
+      });
+
+      // 🔹 準備題目序號與標題 map
+      const qData = cachedDisposalData?.questions || [];
+      if (qData.length <= 1) return;
+      const qHeaders = qData[0];
+      const idxSerial = qHeaders.indexOf("序號");
+      const idxSource = qHeaders.indexOf("出處");
+      const idxTitle  = qHeaders.indexOf("題目");
+
+      const questionMap = new Map(
+        qData.slice(1)
+            .filter(r => String(r[idxSource]).trim() === clickedLabel)
+            .map(r => [String(r[idxSerial]).trim(), String(r[idxTitle]).trim()])
+      );
+
+      // 🔹 篩選出該出處所有題目答題資料
+      const filteredRows = window.examFilteredRows || [];
+      const map = new Map();
+
+      filteredRows.forEach(r => {
+        try {
+          JSON.parse(r["答題內容"] || "[]").forEach(item => {
+            const serial = String(item.序號 || "");
+            if (item.出處 === clickedLabel && questionMap.has(serial)) {
+              if (!map.has(serial)) map.set(serial, { correct: 0, total: 0 });
+              const acc = map.get(serial);
+              acc.total++;
+              if (item.是否答對) acc.correct++;
+            }
+          });
+        } catch {}
+      });
+
+      // ✅ 暫存題目層資料
+      examViewRows = [...map.entries()].map(([serial, { correct, total }]) => ({
+        serial,
+        title: questionMap.get(serial) || "(題目缺失)",
+        total,
+        rate: total ? correct / total : 0
+      }));
+
+      examCurrentLevel = "byQuestion";
+      renderExam();
+      return;
+    }
+
+    // 第二層 → 題目序號層 → 下鑽至單題 (byAnswer)
+    if (examCurrentLevel === "byQuestion") {
+      const serial = clickedLabel;
+      const targetQ = examViewRows.find(q => q.serial === serial);
+      if (!targetQ) return;
+
+      examStack.push({
+        dim: "byAnswer",
+        filter: { key: "題目序號", value: serial, title: targetQ.title }
+      });
+
+      // 🔹 篩選所有有作答這題的考卷
+      const filteredRows = window.examFilteredRows || [];
+      const result = [];
+
+      filteredRows.forEach(r => {
+        try {
+          const arr = JSON.parse(r["答題內容"] || "[]");
+          const match = arr.find(item => String(item.序號) === serial);
+          if (match) {
+            result.push({
+              提交時間: r["提交時間"],
+              單位: r["單位"],
+              用戶名稱: r["用戶名稱"],
+              作答題數: r["作答題數"],
+              答對題數: r["答對題數"],
+              是否合格: r["是否合格"],
+              是否答對: !!match.是否答對,
+              答題內容: r["答題內容"]  // ✅ 必加，讓 showExamDetail 可正常運作
+            });
+          }
+        } catch {}
+      });
+
+      // ✅ 暫存這題的作答紀錄
+      examViewRows = result;
+      examCurrentLevel = "byAnswer";
+      renderExam();
+    }
+  }
+
+  // === 返回上層（回到出處層） ===
+  function resetExamToTop() {
+    examCurrentLevel = "bySource";  // ✅ 回復層級
+    examViewRows = [];              // ✅ 清空下鑽資料
+    examStack.length = 0;
+    if (examChart) examChart.destroy();
+    renderExam();
+    document.getElementById("examBackTopBtn").style.display = "none";
+  }
+
+  // === 顯示統計表格 ===
+  function renderTableRows(rows) {
+    const tbody = document.querySelector("#examTable tbody");
+    tbody.innerHTML = "";
+
+    const currentUser = document.getElementById("name")?.innerText.trim();
+    const isAdmin = getUserUnit() === "衛生局";
+
+    // ✅ 控制固定表頭中「【序號 X】是否答對」欄的顯示與隱藏
+    const thMark = document.getElementById("colAnswerMark");
+    if (thMark) {
+      if (examCurrentLevel === "byAnswer") {
+        const serial = examStack.at(-1)?.filter?.value || "";
+        thMark.textContent = serial ? `【序號 ${serial}】是否答對` : "是否答對";
+        thMark.style.display = "";
+      } else {
+        thMark.textContent = "";
+        thMark.style.display = "none";
+      }
+    }
+
+    // ✅ 如果目前在第三層 (byAnswer)
+    if (examCurrentLevel === "byAnswer") {
+      rows.forEach(r => {
+        const tr = document.createElement("tr");
+        const allowLink =
+          isAdmin || r["用戶名稱"] === currentUser;
+        const mark = r["是否答對"] ? "✔️" : "❌";
+        const submitCell = allowLink
+          ? `<span class="exam-detail-link">${r["提交時間"] || ""}</span>`
+          : (r["提交時間"] || "");
+
+        tr.innerHTML = `
+          <td>${submitCell}</td>
+          ${isAdmin ? `<td>${r["單位"] || ""}</td>` : ""}
+          ${isAdmin ? `<td>${r["用戶名稱"] || ""}</td>` : ""}
+          <td>${r["作答題數"] ?? 0}</td>
+          <td>${r["答對題數"] ?? 0}</td>
+          <td>${r["是否合格"] ?? ""}</td>
+          <td style="text-align:center;">${mark}</td>
+        `;
+
+        if (allowLink) {
+          tr.querySelector(".exam-detail-link")
+            ?.addEventListener("click", () => showExamDetail(r));
+        }
+        tbody.appendChild(tr);
+      });
+      return;
+    }
+
+    // 🟩 其他層級保持原有邏輯（完全不動）
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      const allowLink = isAdmin || r["用戶名稱"] === currentUser;
+
+      tr.innerHTML = `
+        <td>
+          ${allowLink
+            ? `<span class="exam-detail-link">${r["提交時間"] || ""}</span>`
+            : (r["提交時間"] || "")}
+        </td>
+        ${isAdmin ? `<td>${r["單位"] || ""}</td>` : ""}
+        ${isAdmin ? `<td>${r["用戶名稱"] || ""}</td>` : ""}
+        <td>${r["作答題數"] != null && r["作答題數"] !== "" ? r["作答題數"] : 0}</td>
+        <td>${r["答對題數"] != null && r["答對題數"] !== "" ? r["答對題數"] : 0}</td>
+        <td>${r["是否合格"] ?? ""}</td>
+      `;
+
+      if (allowLink) {
+        tr.querySelector(".exam-detail-link")
+          ?.addEventListener("click", () => showExamDetail(r));
+      }
+
+      tbody.appendChild(tr);
+    });
+  }
+
+
+
+  // === 排序功能 ===
+  function bindTableSort() {
+    const ths = document.querySelectorAll("#examTable th.sortable");
+
+    ths.forEach(th => {
+      if (th.dataset.bound === "true") return; // 避免重複綁定
+      th.dataset.bound = "true";
+
+      th.addEventListener("click", () => {
+        const key = th.dataset.key || th.textContent.trim();
+        const asc = th.dataset.asc === "true" ? false : true;
+        th.dataset.asc = asc;
+
+        // ✅ 依層級決定要排序哪一組資料
+        let targetRows;
+        if (examCurrentLevel === "byAnswer") {
+          // 目前是單題作答層
+          targetRows = [...examViewRows];
+        } else if (examCurrentLevel === "byQuestion") {
+          // 題目層
+          targetRows = [...(window.examFilteredRows || [])];
+        } else {
+          // 頂層或出處層
+          targetRows = [...(window.examFilteredRows || examRawRows)];
+        }
+
+        // ✅ 特殊處理「是否答對」欄
+        const isByAnswer = examCurrentLevel === "byAnswer";
+        const serial = examStack.at(-1)?.filter?.value || "";
+        const specialLabel = serial ? `【序號 ${serial}】是否答對` : "是否答對";
+
+        targetRows.sort((a, b) => {
+          let v1, v2;
+
+          // ✅ 若是 byAnswer 層且點「是否答對」
+          if (isByAnswer && key.includes("是否答對")) {
+            v1 = a["是否答對"] ? 1 : 0;
+            v2 = b["是否答對"] ? 1 : 0;
+            return asc ? v1 - v2 : v2 - v1;
+          }
+
+          // === 一般欄位排序 ===
+          v1 = a[key];
+          v2 = b[key];
+
+          if (key === "提交時間") {
+            v1 = new Date(v1);
+            v2 = new Date(v2);
+            return asc ? v1 - v2 : v2 - v1;
+          } else if (typeof v1 === "string" && typeof v2 === "string") {
+            return asc
+              ? String(v1).localeCompare(String(v2), "zh-Hant")
+              : String(v2).localeCompare(String(v1), "zh-Hant");
+          } else {
+            v1 = Number(v1) || 0;
+            v2 = Number(v2) || 0;
+            return asc ? v1 - v2 : v2 - v1;
+          }
+        });
+
+        // ✅ 更新對應層級的全域資料（讓排序結果維持）
+        if (examCurrentLevel === "byAnswer") {
+          examViewRows = targetRows;
+        } else if (examCurrentLevel === "byQuestion") {
+          window.examFilteredRows = targetRows;
+        } else {
+          examRawRows = targetRows;
+        }
+
+        // ✅ 重繪表格（不會破壞表頭事件）
+        renderTableRows(targetRows);
+      });
+    });
+  }
+
+  function aggregateExamBySource(rows) {
+    const map = new Map();
+    rows.forEach(r=>{
+      try {
+        const stats = JSON.parse(r["答題/答對次數"]||"{}");
+        for (const [src,obj] of Object.entries(stats)) {
+          if (!map.has(src)) map.set(src,{ asked:0, correct:0 });
+          map.get(src).asked += obj.答題次數||0;
+          map.get(src).correct += obj.答對次數||0;
+        }
+      } catch(e){ console.error("JSON parse fail", e); }
+    });
+    const pairs = [...map.entries()].map(([k,v])=>[k,v.asked,v.correct,v.asked>0? v.correct/v.asked:0]);
+    return {
+      labels:pairs.map(p=>p[0]),
+      counts:pairs.map(p=>p[1]),
+      rates:pairs.map(p=>p[3])
+    };
+  }
+
+  // 解析答題內容
+  function showExamDetail(row) {
+    try {
+      const arr = JSON.parse(row["答題內容"] || "[]");
+      const qData = cachedDisposalData?.questions || [];
+
+      const html = arr.map((item, idx) => {
+        // 🟢 嘗試讀題庫對應題目 (用序號)
+        let ansData = { ans: "", hint: "", refs: [] };
+        if (qData.length > 1 && item.序號) {
+          const headers = qData[0];
+          const rows = qData.slice(1);
+          const idxSerial = headers.indexOf("序號");
+          const idxAns = headers.indexOf("答案");
+
+          const match = rows.find(r => String(r[idxSerial]).trim() === String(item.序號));
+          if (match && idxAns >= 0) {
+            try {
+              const parsed = JSON.parse(match[idxAns]);
+              if (parsed && typeof parsed === "object") ansData = parsed;
+            } catch {
+              ansData.ans = match[idxAns];
+            }
+          }
+        }
+
+        const markSymbol = item.是否答對 ? "✔️" : "❌";
+
+        // 🧩 顯示選項（不改顏色、不加粗）
+        const optionsHtml = (item.選項 || []).map(opt => {
+          const isChosen = Array.isArray(item.使用者答案)
+            ? item.使用者答案.includes(opt)
+            : item.使用者答案 === opt;
+          return `
+            <label style="display:block; margin-bottom:6px;">
+              <input type="${item.題型 === '複選' ? 'checkbox' : 'radio'}" disabled ${isChosen ? "checked" : ""}>
+              ${opt}
+            </label>`;
+        }).join("");
+
+        // 🟠 答錯顯示提示與圖片
+        let hintHtml = "";
+        if (!item.是否答對 && (ansData.hint || (ansData.refs && ansData.refs.length))) {
+          if (ansData.hint) {
+            hintHtml += `
+              <div class="alert alert-warning mt-3 mb-1 p-2" style="font-size:0.95rem;">
+                <i class="bi bi-lightbulb-fill text-warning"></i>
+                <strong>提示：</strong>${ansData.hint}
+              </div>`;
+          }
+          if (ansData.refs && ansData.refs.length) {
+            const imgs = ansData.refs.map(url => `
+              <img src="${url}" class="rounded border me-2 mb-2"
+                  style="max-width:120px; cursor:pointer;"
+                  onclick="showImagePreview('${url}')">`
+            ).join("");
+            hintHtml += `
+              <div class="mt-2 mb-1">
+                <strong class="text-secondary" style="font-size:0.9rem;">相關參考：</strong><br>
+                <div class="d-flex flex-wrap mt-1">${imgs}</div>
+              </div>`;
+          }
+        }
+
+        return `
+          <div class="question-card">
+            <div class="question-title">
+              <span class="mark-symbol">${markSymbol}</span>
+              <span class="mark-text">${idx + 1}. ${item.題目}</span>
+            </div>
+            <div class="question-options">${optionsHtml}</div>
+            <div class="question-source">出處：${item.出處 || ""}</div>
+            ${hintHtml}
+          </div>`;
+      }).join("");
+
+      document.getElementById("examDetailBody").innerHTML = html;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("examDetailModal")).show();
+
+    } catch (e) {
+      alert("❌ 解析答題內容失敗: " + e.message);
+    }
+  }
+
+
+  function showImagePreview(url) {
+    const modalHtml = `
+      <div class="modal fade" id="imgPreviewModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content bg-transparent border-0">
+            <img src="${url}" class="img-fluid rounded" style="max-height:80vh; margin:auto; display:block;">
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML("beforeend", modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById("imgPreviewModal"));
+    modal.show();
+    document.getElementById("imgPreviewModal").addEventListener("hidden.bs.modal", e => e.target.remove());
+  }
+
+
+
+// 依 examRecords 產生「管理單位 / 承辦人」選單；單位排除「衛生局」
+  function fillUnitAndUserOptions() {
+    const unitSel = document.getElementById('unitSelect');
+    const userSel = document.getElementById('userSelect');
+    if (!unitSel || !userSel) return;
+
+    const aoa = cachedDisposalData?.examRecords || [];
+    if (aoa.length <= 1) {
+      unitSel.innerHTML = `<option value="all">🌐 全部</option>`;
+      userSel.innerHTML = `<option value="all">🌐 全部</option>`;
+      return;
+    }
+
+    const headers = aoa[0].map(h => String(h).trim());
+    const rows = aoa.slice(1).map(r => {
+      const o = {}; headers.forEach((h,i)=>o[h]=r[i]); return o;
+    });
+
+    const collator = new Intl.Collator('zh-Hant');
+
+    // --- 管理單位（排除空值與「衛生局」） ---
+    const unitSet = new Set(
+      rows.map(r => String(r['單位']||'').trim())
+          .filter(v => v && v !== '衛生局')
+    );
+    const units = Array.from(unitSet).sort(collator.compare);
+    unitSel.innerHTML = `<option value="all">🌐 全部</option>` +
+      units.map(u => `<option value="${u}">${u}</option>`).join('');
+
+    // --- 依目前「管理單位」內容，初始化承辦人清單 ---
+    updateUserOptionsForUnit();
+  }
+
+</script>
+
+<div class="modal fade" id="examDetailModal" tabindex="-1" 
+     data-bs-backdrop="static" 
+     data-bs-keyboard="false" 
+     aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content p-3">
+      <div class="modal-header">
+        <h5 class="modal-title">答題紀錄</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="examDetailBody"></div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>

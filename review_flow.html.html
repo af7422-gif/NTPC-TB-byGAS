@@ -1,0 +1,52 @@
+<!-- review_flow.html -->
+<div class="modal fade"
+     id="reviewFlowModal"
+     tabindex="-1"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header border-0">
+        <div class="w-100 text-center">
+          <span style="font-size:1.6rem; font-weight:700; color:#ffa07a;">
+            <i class="material-icons align-middle"
+               style="font-size:2.4rem;">account_tree</i>
+            審核流程紀錄
+          </span>
+        </div>
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="reviewFlowContent"
+             style="min-height:400px;
+                    background:#f8f9fa;
+                    border-radius:12px;
+                    padding:20px;">
+          流程內容待設計
+        </div>
+      </div>
+
+      <div class="modal-footer justify-content-center">
+        <button class="btn btn-secondary"
+                data-bs-dismiss="modal">
+          關閉
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function openReviewFlowModal() {
+  const modal = new bootstrap.Modal(
+    document.getElementById('reviewFlowModal')
+  );
+  modal.show();
+}
+</script>

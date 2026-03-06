@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>登入測驗</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body.exam-body {
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+    .question-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      padding: 20px;
+    }
+    .question-title {
+      white-space: pre-wrap;
+      font-size: 1.2rem;
+      font-weight: 600;
+      padding-top: 14px;
+      margin-bottom: 16px;
+      display: flex;           /* 用 flex 對齊 */
+      align-items: flex-start;
+      gap: 16px;                /* 符號和文字間距 */
+    }
+    .q-no {
+      width: 2em;        /* 題號固定寬度（可微調） */
+      flex-shrink: 0;
+      text-align: right;
+    }
+    .q-text {
+      white-space: pre-wrap;
+      flex: 1;
+      line-height: 1.8;        /* ⭐ 原本大約 1.4 → 拉到 1.75~1.9 最舒服 */
+      letter-spacing: 0.02em; /* 可選：微調字距，長句更好讀 */
+    }
+    .question-title .mark-symbol {
+      font-size: 1.4rem;       /* 符號稍大一點 */
+      flex-shrink: 0;          /* 確保不會被壓縮 */
+    }
+    .question-title .mark-text {
+      flex: 1;                 /* 文字佔滿剩餘空間 */
+    }
+    .question-options label {
+      display: block;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 1.05rem;
+      cursor: pointer;
+      padding-left: 45px; 
+      line-height: 1.6;
+    }
+    /* radio / checkbox 固定寬度 */
+    .question-options input[type="radio"],
+    .question-options input[type="checkbox"] {
+      margin-top: 0.35em;   /* 讓圓圈和第一行文字對齊 */
+      flex-shrink: 0;
+    }
+    .question-source {
+      text-align: right;
+      font-weight: bold;
+      margin-top: 10px;
+      color: #555;
+    }
+    #examResultModal .modal-content {
+      padding: 20px 20px;   /* 上下20px，左右24px */
+      border-radius: 12px;  /* 四角圓弧更柔和 */
+    }
+    .mark-text {
+      white-space: pre-wrap;
+    }
+    .mark-symbol {
+      flex-shrink: 0;
+    }
+    .question-card.correct {
+      border-left: 6px solid #2fb344;
+      background: #f4fbf7;
+    }
+
+    .question-card.wrong {
+      border-left: 6px solid #e03131;
+      background: #fff5f5;
+    }
+  </style>
+</head>
+<body class="exam-body">
+  <div class="container">
+    <h2 class="text-center mb-4">登入測驗</h2>
+    <p id="examIntro" class="text-center text-muted mb-4">
+      請依題目內容選擇「正確」或「最合適」的項目
+    </p>
+
+    <div id="examQuestions"></div>
+
+    <div class="d-flex justify-content-center mt-4" style="margin-bottom:40px;">
+      <button class="btn btn-outline-secondary me-3" onclick="returnToLogin()">返回登入</button>
+      <button id="submitExamBtn" class="btn btn-primary me-3" onclick="submitExam()">提交答案</button>
+      <button id="fastPassBtn" class="btn btn-success" onclick="fastPass()">快速通過</button>
+    </div>
+
+  </div>
+
+  <!-- Bootstrap Modal -->
+  <div class="modal fade" id="examResultModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0">
+          <h5 class="modal-title fw-bold" id="examResultTitle"></h5>
+        </div>
+        <div class="modal-body" id="examResultBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="examResultOkBtn">確定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- alert 對話模塊-->
+  <div class="modal fade" id="exam_customAlertModal" tabindex="-1" aria-labelledby="customAlertModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+      <div class="modal-content" style="min-height: 340px; display: flex; flex-direction: column; justify-content: center; padding: 40px 28px 32px 28px;">
+        <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+            <dotlottie-wc src="https://lottie.host/516d63f8-8a38-43b8-9de5-f5131a2f767e/tGQ9PlBqt4.lottie" autoplay loop style="width:100%;height:100%;"></dotlottie-wc>
+          <h2 style="margin: 0 0 0 0; font-size: 1.55rem; font-weight: bold; text-align:center;">
+            <span id="customAlertMessage"></span>
+          </h2>
+        </div>
+        <div class="modal-footer justify-content-center border-0" style="padding-top: 8px;">
+          <button type="button" class="custom-btn custom-btn-secondary" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">關閉</button>
+          <button type="button" id="customAlertOkBtn" class="custom-btn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 禁止 對話模塊-->
+  <div class="modal fade" id="forbiddenModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+      <div class="modal-content" style="min-height: 340px; display: flex; flex-direction: column; justify-content: center; padding: 40px 28px 32px 28px; border-radius: 16px; box-shadow: 0 6px 32px rgba(0,0,0,0.12);">
+        <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+          <dotlottie-wc 
+            src="https://lottie.host/45362cae-82dd-472d-adbd-ec59f95fef52/OliPvwybAO.lottie" 
+            autoplay loop speed="0.5" 
+            style="width:100%;height:100%;">
+          </dotlottie-wc>
+          <h2 id="forbiddenText" style="margin: 24px 0 0 0; font-size: 1.55rem; font-weight: bold; text-align:center;">
+            通過率低於 90%，不可使用快速通過！
+          </h2>
+        </div>
+        <div class="modal-footer justify-content-center border-0" style="padding-top: 8px;">
+          <button type="button" class="custom-btn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 確定提交 -->
+  <div class="modal fade" id="exam_confirmUpdateModal" tabindex="-1" aria-labelledby="confirmUpdateModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+      <div class="modal-content" style="min-height: 440px; display: flex; flex-direction: column; justify-content: center;">
+        <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+          <dotlottie-wc src="https://lottie.host/d016a098-1d3f-4830-afed-803d3155bbb9/FH0ctHzVih.lottie" autoplay loop style="width:100%;height:100%;"></dotlottie-wc>
+            <h2 style="margin: 32px 0 0 0; font-size: 2.5rem; font-weight: bold; text-align:center;">
+              確定提交？
+            </h2>
+        </div>
+        <div class="modal-footer justify-content-center border-0" style="padding-top: 8px;">
+          <button type="button" class="custom-btn custom-btn-secondary" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">關閉</button>
+          <button type="button" class="custom-btn" id="exam_confirmUpdateBtn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+        </div>
+        <br>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+  let selectedQuestions = [];
+  let numQuestions = 0;
+
+  // === 初始化題目 ===
+  function initExamQuestions(n) {
+    numQuestions = n;
+
+    // === 題庫 ===
+    const qData = cachedDisposalData.questions;
+    if (!qData || qData.length <= 1) {
+      console.error("題庫沒有資料");
+      return;
+    }
+    examAlreadyInit = true;
+
+    const qHeaders = qData[0];
+    const qRows = qData.slice(1);
+
+    // === 答題紀錄 ===
+    const examRecords = cachedDisposalData.examRecords || [];
+    const erHeaders = examRecords[0] || [];
+    const idxAccount = erHeaders.indexOf("公務帳號");
+    const idxContent = erHeaders.indexOf("答題內容");
+
+    // 過濾目前用戶紀錄
+    const userRecords = examRecords.slice(1).filter(r =>
+      r[idxAccount] === currentUser["公務帳號"]
+    );
+
+    // === 統計序號的出題情形 ===
+    const statsMap = {}; // {序號: {asked, correct}}
+    userRecords.forEach(r => {
+      try {
+        const arr = JSON.parse(r[idxContent] || "[]");
+        arr.forEach(item => {
+          const serial = parseInt(item.序號, 10);
+          if (!serial) return;
+          if (!statsMap[serial]) statsMap[serial] = { asked: 0, correct: 0 };
+          statsMap[serial].asked++;
+          if (item.是否答對 === true || item.是否答對 === "true") {
+            statsMap[serial].correct++;
+          }
+        });
+      } catch (e) {
+        console.error("解析答題內容失敗:", e);
+      }
+    });
+
+    // === 整理題庫（⭐重點修正在這裡） ===
+    const allQuestions = qRows.map(row => {
+      let obj = {};
+      qHeaders.forEach((h, i) => obj[h] = row[i]);
+
+      const serial = parseInt(obj["序號"], 10);
+      const stat = statsMap[serial] || { asked: 0, correct: 0 };
+      const rate = stat.asked > 0 ? stat.correct / stat.asked : 0;
+
+      // 🔹 解析答案 JSON
+      let ansRaw = String(obj["答案"] || "").trim();
+      let ans = ansRaw;
+      let hint = "";
+      let refs = [];
+
+      try {
+        const parsed = JSON.parse(ansRaw);
+        if (parsed && typeof parsed === "object" && parsed.ans) {
+          ans = String(parsed.ans).trim();   // ⭐ 只留下 A / B / C
+          hint = parsed.hint || "";
+          refs = Array.isArray(parsed.refs) ? parsed.refs : [];
+        }
+      } catch {
+        // 舊格式（非 JSON）直接使用
+        ans = ansRaw;
+      }
+
+      return {
+        序號: serial,
+        出處: obj["出處"],
+        題目: obj["題目"],
+        題型: obj["題型"],
+        答案: ans,          // ⭐ 保證是 A / B / C
+        提示: hint,
+        參考圖: refs,
+        選項: ["A","B","C","D","E"]
+          .map(k => obj[k])
+          .filter(opt => opt && String(opt).trim() !== ""),
+        出題次數: stat.asked,
+        答對次數: stat.correct,
+        答對率: rate,
+        命題者: obj["命題者"],
+        啟用狀態: String(obj["啟用狀態"]).toUpperCase() === "✅ 啟用"
+      };
+    }).filter(q => q.啟用狀態);
+
+    //====== 抽題邏輯（⚠️ 以下完全照你原本的，不動） ======
+    let final = [];
+
+    const weightedCount = 1;
+    const restCount = n - weightedCount;
+
+    // 2️⃣ 新題
+    const neverAsked = allQuestions.filter(q => q.出題次數 === 0);
+    shuffleArray(neverAsked);
+    const newPicked = neverAsked.slice(0, restCount);
+    final.push(...newPicked);
+
+    // 3️⃣ 不夠 → 低答對率補
+    const missingNew = restCount - newPicked.length;
+    let lowRatePool = [];
+    if (missingNew > 0) {
+      const lowRateCandidates = allQuestions.filter(q => q.出題次數 > 0);
+      const lowRateSorted = [...lowRateCandidates].sort((a, b) => a.答對率 - b.答對率);
+      const cutoff = Math.ceil(lowRateSorted.length * 0.3);
+      lowRatePool = lowRateSorted.slice(0, cutoff);
+      shuffleArray(lowRatePool);
+
+      const mustInclude = [];
+      for (let i = 0; i < lowRatePool.length && mustInclude.length < missingNew; i++) {
+        const q = lowRatePool[i];
+        if (!final.some(f => f.序號 === q.序號)) {
+          mustInclude.push(q);
+        }
+      }
+      final.push(...mustInclude);
+    }
+
+    // 4️⃣ 加權題
+    const weightedPool = [];
+    const hasHistory = allQuestions.some(q => q.出題次數 > 0);
+
+    allQuestions.forEach(q => {
+      if (hasHistory && q.出題次數 === 0) return;
+
+      const wrong = q.出題次數 - q.答對次數;
+      const wrongRate = 1 - q.答對率;
+      let weight;
+
+      if (q.出題次數 >= 3 && q.答對率 === 1) {
+        weight = 1;
+      } else {
+        weight = Math.max(1, Math.round(wrongRate * 20 + wrong));
+      }
+
+      if (!final.some(f => f.序號 === q.序號)) {
+        for (let i = 0; i < weight; i++) weightedPool.push(q);
+      }
+    });
+
+    if (weightedPool.length > 0) {
+      const idx = Math.floor(Math.random() * weightedPool.length);
+      const q = weightedPool[idx];
+      if (!final.some(f => f.序號 === q.序號)) {
+        final.push(q);
+      }
+    }
+
+    // 5️⃣ 是非題最多 1 題
+    const tfQs = final.filter(q => q.題型 === "是非");
+    if (tfQs.length > 1) {
+      tfQs.slice(1).forEach(q => {
+        let replacement = null;
+        while (weightedPool.length && !replacement) {
+          const c = weightedPool.pop();
+          if (c.題型 !== "是非" && !final.some(f => f.序號 === c.序號)) {
+            replacement = c;
+          }
+        }
+        if (replacement) {
+          const pos = final.findIndex(f => f.序號 === q.序號);
+          if (pos >= 0) final[pos] = replacement;
+        }
+      });
+    }
+
+    selectedQuestions = final;
+    renderExamQuestions();
+
+    // 題庫統計：出題次數 +1
+    const updates = selectedQuestions.map(q => ({
+      serialNo: q.序號,
+      asked: 1,
+      correct: 0
+    }));
+    google.script.run.updateQuestionStatsBatch(updates, currentUser["單位名稱"]);
+
+    // 記錄發卷
+    google.script.run.updateExamStats(currentUser["公務帳號"], "issued");
+  }
+
+
+  // 工具函數：隨機打亂陣列
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+
+  // === 顯示題目 ===
+  function renderExamQuestions() {
+    // ✅ 清除上次作答的提示區塊
+    document.querySelectorAll('.hint-area').forEach(el => el.remove());
+    const container = document.getElementById("examQuestions");
+    container.innerHTML = "";
+
+    selectedQuestions.forEach((q, idx) => {
+      let optionsHtml = "";
+
+      // ================= 是非題 =================
+      if (q.題型 === "是非") {
+        ["是","否"].forEach(opt => {
+          optionsHtml += `
+            <label>
+              <input type="radio" name="q${idx}" value="${opt}" onchange="checkAllAnswered()">
+              ${opt}
+            </label>`;
+        });
+
+      // ================= 單選題 =================
+      } else if (q.題型 === "單選") {
+
+        // 1. 取得正確答案的文字內容
+        let correctText = null;
+        const answerIndex = "ABCDE".indexOf(q.答案.toUpperCase());
+        if (answerIndex !== -1) {
+          correctText = q.選項[answerIndex];
+        }
+
+        // 2. 尋找特殊選項 (以上皆是/以上皆非)
+        const specialTexts = ["以上皆是", "以上皆非"];
+        const specialOption = q.選項.find(o => specialTexts.includes(o)) || null;
+
+        let finalOpts = [];
+
+        if (specialOption) {
+          // === 情況 A：有特殊選項 (總共需湊齊 4 個，特殊在最後) ===
+          
+          // 從選項中排除掉「正確答案」與「特殊選項」，剩下的當作純干擾項池
+          let pool = q.選項.filter(o => o !== correctText && o !== specialOption);
+          
+          // 隨機洗牌干擾項
+          pool.sort(() => Math.random() - 0.5);
+
+          // 如果正確答案本身就是特殊選項
+          if (correctText === specialOption) {
+            // 挑選 3 個干擾項 + 1 個特殊選項(正確答案)
+            finalOpts = pool.slice(0, 3);
+            finalOpts.sort(() => Math.random() - 0.5);
+            finalOpts.push(specialOption);
+          } else {
+            // 如果正確答案是普通選項：1正確 + 2干擾 + 1特殊
+            finalOpts = [correctText, ...pool.slice(0, 2)];
+            finalOpts.sort(() => Math.random() - 0.5);
+            finalOpts.push(specialOption);
+          }
+
+        } else {
+          // === 情況 B：無特殊選項 (一般亂數) ===
+          
+          let pool = q.選項.filter(o => o !== correctText);
+          pool.sort(() => Math.random() - 0.5);
+
+          // 1個正確 + 3個干擾，然後全體洗牌
+          finalOpts = [correctText, ...pool.slice(0, 3)];
+          finalOpts.sort(() => Math.random() - 0.5);
+        }
+
+        // 3. 渲染 HTML
+        finalOpts.forEach(opt => {
+          optionsHtml += `
+            <label>
+              <input type="radio" name="q${idx}" value="${opt}" onchange="checkAllAnswered()">
+              ${opt}
+            </label>`;
+        });
+
+        q.correctOption = correctText;
+        
+      // ================= 複選題 =================
+      } else if (q.題型 === "複選") {
+
+        const opts = q.選項;
+        const letters = q.答案.replace(/[^A-E]/gi, "").split("");
+
+        q.correctOptions = letters
+          .map(ch => {
+            const i = "ABCDE".indexOf(ch.toUpperCase());
+            return i >= 0 ? opts[i] : null;
+          })
+          .filter(Boolean);
+
+        const shuffledOpts = opts.slice().sort(() => Math.random() - 0.5);
+        shuffledOpts.forEach(opt => {
+          optionsHtml += `
+            <label>
+              <input type="checkbox" name="q${idx}" value="${opt}" onchange="checkAllAnswered()">
+              ${opt}
+            </label>`;
+        });
+      }
+
+      // ================= 題目卡片 =================
+      container.innerHTML += `
+        <div class="question-card">
+          <div class="question-title">
+            <span class="q-no">${idx + 1}.</span>
+            <span class="q-text">${q.題目}</span>
+          </div>
+          <div class="question-options">${optionsHtml}</div>
+          <div class="question-source">出處：${q.出處}</div>
+        </div>`;
+    });
+
+    // 初始化：出題後一開始禁止提交
+    document.getElementById("submitExamBtn").disabled = true;
+  }
+
+  // === 顯示結果用 Modal ===
+  function showExamResultModal(title, body, onOk) {
+    document.getElementById("examResultTitle").innerText = title;
+    document.getElementById("examResultBody").innerText = body;
+
+    const okBtn = document.getElementById("examResultOkBtn");
+    okBtn.onclick = () => {
+      bootstrap.Modal.getInstance(document.getElementById("examResultModal")).hide();
+      if (onOk) onOk();
+    };
+
+    const modal = new bootstrap.Modal(document.getElementById("examResultModal"));
+    modal.show();
+  }
+
+  // === 提交答案 ===
+  function submitExam() {
+    const confirmModal = new bootstrap.Modal(document.getElementById("exam_confirmUpdateModal"));
+    confirmModal.show();
+
+    document.getElementById("exam_confirmUpdateBtn").onclick = function() {
+      confirmModal.hide();
+      checkExamAnswers();   // 👈 這樣才能呼叫到外部的 checkExamAnswers
+    };
+  }
+
+  //檢查是否全都答題完成
+  function checkAllAnswered() {
+    let allAnswered = true;
+
+    selectedQuestions.forEach((q, idx) => {
+      if (q.題型 === "複選") {
+        const checked = document.querySelectorAll(`input[name="q${idx}"]:checked`);
+        if (checked.length === 0) allAnswered = false;
+      } else {
+        const checked = document.querySelector(`input[name="q${idx}"]:checked`);
+        if (!checked) allAnswered = false;
+      }
+    });
+
+    document.getElementById("submitExamBtn").disabled = !allAnswered;
+  }
+
+  // ✅ 改考卷
+  function checkExamAnswers() {
+    let allCorrect = true;
+    const updates = [];
+    const examDetails = [];
+    let correctCount = 0;
+
+    // 🔹 小工具：格式化 YYYY/MM/DD HH:mm:ss
+    function formatDate(dt) {
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const mi = String(dt.getMinutes()).padStart(2, "0");
+      const ss = String(dt.getSeconds()).padStart(2, "0");
+      return `${yyyy}/${mm}/${dd} ${hh}:${mi}:${ss}`;
+    }
+
+    selectedQuestions.forEach((q, idx) => {
+      let isCorrect = false;
+      let userAns = null;
+      let hint = "";
+      let refs = [];
+
+      // ✅ 嘗試解析新制答案格式
+      let ansData = {};
+      try {
+        const parsed = JSON.parse(q.答案);
+        if (typeof parsed === "object" && parsed !== null && parsed.hasOwnProperty("ans")) {
+          ansData = parsed;
+        } else {
+          ansData = { ans: q.答案 };
+        }
+      } catch {
+        ansData = { ans: q.答案 };
+      }
+
+      const trueAns = ansData.ans || "";
+      hint = ansData.hint || "";
+      refs = ansData.refs || [];
+
+      // === 判斷正確與否 ===
+      if (q.題型 === "複選") {
+        userAns = Array.from(document.querySelectorAll(`input[name="q${idx}"]:checked`))
+          .map(el => el.value).sort();
+
+        const correctLetters = trueAns.replace(/[^A-E]/gi, "").split("");
+        const correctOpts = correctLetters.map(ch => {
+          const i = "ABCDE".indexOf(ch.toUpperCase());
+          return q.選項[i] || "";
+        }).filter(Boolean).sort();
+
+        isCorrect = JSON.stringify(userAns) === JSON.stringify(correctOpts);
+        } else if (q.題型 === "單選") {
+          userAns = document.querySelector(`input[name="q${idx}"]:checked`)?.value;
+          const correctText = q.correctOption;
+          isCorrect = (userAns === correctText);
+        }
+        else { // 是非題
+          userAns = document.querySelector(`input[name="q${idx}"]:checked`)?.value;
+          isCorrect = (userAns === trueAns);
+        }
+
+      // === 題目標題顯示 ✔️ / ❌ ===
+      const titleEl = document.querySelectorAll(".question-title")[idx];
+      if (titleEl) {
+        titleEl.innerHTML = `
+          <span class="q-no">${idx + 1}.</span>
+          <span class="q-text">${q.題目}</span>
+        `;
+      }
+
+      const cardEl = document.querySelectorAll(".question-card")[idx];
+      if (cardEl) {
+        // ⭐ 不管對錯，先標記狀態
+        cardEl.classList.remove("correct", "wrong");
+        cardEl.classList.add(isCorrect ? "correct" : "wrong");
+
+        // ❌ 只有答錯才顯示提示
+        if (!isCorrect) {
+          let hintHtml = "";
+
+          if (q.提示 && q.提示.trim() !== "") {
+            hintHtml += `
+              <div class="alert alert-warning mt-3 mb-1 p-2 d-flex align-items-center" style="font-size:0.95rem; gap: 8px;">
+                <div class="d-flex align-items-center flex-shrink-0" style="font-weight: bold; min-width: 70px; padding-left: 12px;">
+                  <i class="bi bi-lightbulb-fill text-warning me-1"></i>
+                  <span>提示：</span>
+                </div>
+                <div style="white-space: pre-wrap; flex: 1;">${q.提示}</div>
+              </div>`;
+          }
+
+          if (q.參考圖 && q.參考圖.length > 0) {
+            const imgs = q.參考圖.map(url => `
+              <img src="${url}" class="rounded border me-2 mb-2"
+                  style="max-width:120px; cursor:pointer;"
+                  onclick="showImagePreview('${url}')">
+            `).join("");
+
+            hintHtml += `
+              <div class="mt-2 mb-1">
+                <strong class="text-secondary" style="font-size:0.9rem;">相關參考：</strong><br>
+                <div class="d-flex flex-wrap mt-1">${imgs}</div>
+              </div>`;
+          }
+
+          if (hintHtml) {
+            const hintDiv = document.createElement("div");
+            hintDiv.className = "hint-area";
+            hintDiv.innerHTML = hintHtml;
+            cardEl.appendChild(hintDiv);
+          }
+        }
+      }
+
+
+      if (!isCorrect) allCorrect = false;
+      if (isCorrect) {
+        updates.push({ serialNo: q.序號, asked: 0, correct: 1 });
+        correctCount++;
+      }
+
+      // 🔹 把選項抓回來（若是非題沒選項，補 ["是","否"]）
+      let opts = Array.from(document.querySelectorAll(`input[name="q${idx}"]`))
+        .map(el => el.value);
+      if ((!opts || opts.length === 0) && q.題型 === "是非") {
+        opts = ["是", "否"];
+      }
+
+      examDetails.push({
+        序號: q.序號,
+        出處: q.出處,
+        題型: q.題型,
+        題目: q.題目,
+        選項: opts,
+        使用者答案: userAns,
+        是否答對: isCorrect
+      });
+    });
+
+    // ✅ 更新題庫全域統計（只加正確答題數）
+    if (updates.length > 0) {
+      google.script.run.updateQuestionStatsBatch(updates);
+    }
+
+    // ✅ 鎖定所有輸入框
+    document.querySelectorAll('#examQuestions input').forEach(inp => {
+      inp.disabled = true;
+    });
+
+    // 🔹 組合一份考卷紀錄
+    const examRecord = {
+      提交時間: formatDate(new Date()),
+      公務帳號: currentUser["公務帳號"],
+      單位: currentUser["單位名稱"],
+      用戶名稱: currentUser["姓名"],
+      作答題數: selectedQuestions.length,
+      答對題數: correctCount,
+      答題內容: examDetails,
+      是否合格: allCorrect
+    };
+
+    // ✅ 寫入後端
+    google.script.run.saveExamRecord(examRecord);
+
+    // ✅ 同步更新快取
+    if (cachedDisposalData && cachedDisposalData.examRecords) {
+      const headers = cachedDisposalData.examRecords[0] || [];
+      ["提交時間","公務帳號","單位","用戶名稱","作答題數","答對題數","答題內容","是否合格"].forEach(col => {
+        if (!headers.includes(col)) headers.push(col);
+      });
+
+      const row = [];
+      row[headers.indexOf("提交時間")] = examRecord.提交時間;
+      row[headers.indexOf("公務帳號")] = examRecord.公務帳號;
+      row[headers.indexOf("單位")] = examRecord.單位;
+      row[headers.indexOf("用戶名稱")] = examRecord.用戶名稱;
+      row[headers.indexOf("作答題數")] = examRecord.作答題數;
+      row[headers.indexOf("答對題數")] = examRecord.答對題數;
+      row[headers.indexOf("答題內容")] = JSON.stringify(examRecord.答題內容);
+      row[headers.indexOf("是否合格")] = examRecord.是否合格 ? "合格" : "不合格";
+      cachedDisposalData.examRecords.push(row);
+
+      const aoa = cachedDisposalData.examRecords;
+      if (aoa.length > 1) {
+        const header = aoa[0];
+        let rows = aoa.slice(1).map(r => {
+          const o = {}; header.forEach((c,i)=>o[c]=r[i]); return o;
+        });
+        rows = rows.filter(r => r["單位"] !== "衛生局");
+        examRawRows = rows;
+      }
+    }
+
+    // === 結果提示 ===
+    if (allCorrect) {
+      showExamResultModal("✅ 全部答對！", "恭喜你已通過測驗，點擊確定後進入系統。", () => {
+        google.script.run.updateExamStats(currentUser["公務帳號"], "passed");
+        mainInitAfterLogin(currentUser);
+      });
+    } else {
+      const btn = document.getElementById("submitExamBtn");
+      btn.innerText = "重新測驗";
+      btn.onclick = function() {
+        initExamQuestions(numQuestions);
+        btn.innerText = "提交答案";
+        btn.onclick = submitExam;
+      };
+      showExamResultModal("❌ 有題目答錯了", "請重新測驗！", null);
+    }
+  }
+
+
+  //快速通關
+  function fastPass() {
+    if (!currentUser) return;
+
+    // 從帳號表讀出合格率
+    let rawRate = parseFloat(currentUser["合格率"] || 0);
+
+    // 如果小於等於 1，代表是比例 (0.92)，轉換成百分比
+    let ratePct = rawRate <= 1 ? rawRate * 100 : rawRate;
+
+    //console.log("合格率：" + ratePct + "%");
+
+    if (ratePct >= 90) {
+      // ✅ 通過率夠 → 用 customAlertModal 提示
+      document.getElementById("customAlertMessage").innerText =
+        `你目前合格率為 ${ratePct.toFixed(1)}%。\n使用快速通過後會直接進入系統，但合格率會下降！低於90%便不能使用！`;
+
+      const alertModal = new bootstrap.Modal(document.getElementById("exam_customAlertModal"));
+      alertModal.show();
+
+      const okBtn = document.getElementById("customAlertOkBtn");
+      okBtn.onclick = () => {
+        alertModal.hide();
+
+        // 更新後端 → 上次登入時間
+        google.script.run.updateLastLogin(currentUser["公務帳號"]);
+
+        // 直接進入銷案清單
+        mainInitAfterLogin(currentUser);
+      };
+
+
+    } else {
+      // ❌ 通過率不足 → 打開禁止使用 modal
+      const forbiddenModal = new bootstrap.Modal(document.getElementById("forbiddenModal"));
+      forbiddenModal.show();
+
+      // 顯示用戶目前合格率
+      const forbiddenBody = document.querySelector("#forbiddenModal h2");
+      if (forbiddenBody) {
+        forbiddenBody.innerText = `你目前合格率為 ${ratePct.toFixed(1)}%，低於 90%，不可使用快速通過！`;
+      }
+    }
+  }
+
+
+  // === 返回登入 ===
+  function returnToLogin() {
+    document.getElementById("customAlertMessage").innerText =
+      "本次測驗將視同不合格。\n確定要回到登入頁面嗎？";
+
+    const alertModal = new bootstrap.Modal(document.getElementById("exam_customAlertModal"));
+    alertModal.show();
+
+    const okBtn = document.getElementById("customAlertOkBtn");
+    okBtn.onclick = () => {
+      alertModal.hide();
+
+      // 清空登入資訊
+      currentUser = null;
+      const accEl = document.getElementById("account");
+      const pwdEl = document.getElementById("password");
+      if (accEl) accEl.value = "";
+      if (pwdEl) pwdEl.value = "";
+
+      // ⬅️ 按鈕文字與事件復原
+      const btn = document.getElementById("submitExamBtn");
+      if (btn) {
+        btn.innerText = "提交答案";
+        btn.onclick = submitExam;
+      }
+
+      if (typeof showLoginSection === "function") {
+        showLoginSection();
+      }
+    };
+  }
+
+
+  </script>
+</body>
+</html>
+

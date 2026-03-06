@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.10.2/lottie.min.js"></script>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+  /* ============ 欄寬可自訂（改這裡的數值就能調整） ============ */
+  :root {
+    --col-source: 220px;
+    --col-type: 100px;
+    --col-title: 450px;   /* 原本 520px → 縮小 */
+    --col-asked: 105px;
+    --col-correct: 105px;
+    --col-rate: 110px;
+    --col-owner: 110px;
+    --col-status: 140px;  /* 新增：啟用狀態 */
+  }
+
+
+/* ================== 題庫專屬樣式 ================== */
+
+  /* 排序箭頭 */
+  #questionBankModal #questionTable th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  #questionBankModal #questionTable th.sortable::after {
+    content: '';
+    display: inline-block;
+    margin-left: 6px;
+    border-width: 5px 4px 0 4px;
+    border-style: solid;
+    border-color: #bbb transparent transparent transparent;
+    vertical-align: middle;
+  }
+  #questionBankModal #questionTable th.sorted-asc::after {
+    border-width: 0 4px 5px 4px;
+    border-color: transparent transparent #ffa07a transparent;
+  }
+  #questionBankModal #questionTable th.sorted-desc::after {
+    border-width: 5px 4px 0 4px;
+    border-color: #ffa07a transparent transparent transparent;
+  }
+
+  /* 表格 */
+  #questionBankModal .table {
+    border: 2px solid #ced4da;
+  }
+  #questionBankModal .table th,
+  #questionBankModal .table td {
+    text-align: center;
+  }
+  #questionBankModal .table td.qb-text-start {
+    text-align: left;
+    color: #0d6efd;
+    cursor: pointer;
+  }
+
+  /* Modal */
+  #questionBankModal .modal-content {
+    border: 2px solid #ced4da;
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  /* 表單元件 */
+  #questionBankModal .form-control {
+    border: 2px solid #ced4da;
+  }
+  #questionBankModal .form-label {
+    font-weight: 600;
+  }
+  #questionBankModal .form-select {
+    border: 2px solid #ced4da;
+  }
+  #questionBankModal .form-check-input {
+    cursor: pointer;
+  }
+
+  /* 按鈕 */
+  #questionBankModal .btn {
+    min-width: 90px;
+  }
+  /* === 添加題目 Modal === */
+  #addQuestionModal .modal-content {
+    border: 2px solid #ced4da;   /* 外框粗線 */
+    border-radius: 16px;
+    padding: 20px;   /* 外框和內容之間留距 */
+  }
+  #addQuestionModal .modal-body {
+    padding: 20px 28px;   /* 內容區塊間距 */
+  }
+  #addQuestionModal .form-label {
+    font-weight: 600;
+  }
+
+  /* === 瀏覽題目 Modal === */
+  #viewQuestionModal .modal-content {
+    border: 2px solid #ced4da;   /* 外框粗線 */
+    border-radius: 16px;
+    padding: 20px;
+  }
+  #viewQuestionModal .modal-body {
+    padding: 20px 28px;
+  }
+  #viewQuestionModal .form-label {
+    font-weight: 600;
+  }
+  #viewQuestionModal .form-control {
+    border: 2px solid #ced4da;   /* 內框一致 */
+    background-color: #f8f9fa;
+  }
+  // =======選項的間隔==========
+  #addQuestionModal .answer-row {
+    margin-bottom: 12px;   /* 行距拉大 */
+  }
+
+  #questionViewModal .form-control[readonly] {
+    background-color: #f8f9fa;
+    cursor: default;
+  }
+  #questionViewModal .table td, 
+  #questionViewModal .table th {
+    text-align: center;
+    vertical-align: middle;
+  }
+  #questionViewModal .modal-content {
+    border: 2px solid #ced4da;
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+
+
+  </style>
+</head>
+<body>
+
+<!-- 📚 題庫 Modal -->
+<div class="modal fade" id="questionBankModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-xxl modal-dialog-centered" style="max-width: var(--bank-width);">
+    <div class="modal-content" style="padding:20px; border-radius:16px;">
+      <div class="modal-header border-0">
+        <div class="w-100 text-center">
+          <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center" 
+                style="font-size:1.6rem; color:#ffa07a;">
+            <i class="bi bi-database-fill" style="font-size:2rem; vertical-align:middle;"></i>
+            題庫瀏覽
+          </span>
+        </div>
+        <button type="button" class="btn-close position-absolute end-0 me-3" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-2 pb-4">
+        <div class="d-flex justify-content-between mb-4">
+          <button class="custom-btn d-inline-flex align-items-center gap-1"
+                  onclick="openAddQuestionModal()">
+            <i class="bi bi-database-add" style="font-size:1.2rem; vertical-align:middle;"></i>
+            添加題目
+          </button>
+        </div>
+          <!-- 篩選列 -->
+          <div class="filter-bar mb-4"> 
+            <div class="row g-2 align-items-center">
+              <div class="col-auto">
+                <label for="filterSource" class="filter-label" style="margin-left:16px;">出處：</label>
+                <select id="filterSource" class="form-select form-select-sm d-inline-block" style="width: 220px;">
+                  <option value="🌐 全部" selected>🌐 全部</option>
+                </select>
+              </div>
+              <div class="col-auto">
+                <label for="filterType" class="filter-label" style="margin-left:16px;">題型：</label>
+                <select id="filterType" class="form-select form-select-sm d-inline-block" style="width: 150px;">
+                  <option value="🌐 全部" selected>🌐 全部</option>
+                </select>
+              </div>
+              <div class="col-auto">
+                <label for="filterOwner" class="filter-label" style="margin-left:16px;">命題者：</label>
+                <select id="filterOwner" class="form-select form-select-sm d-inline-block" style="width: 150px;">
+                  <option value="🌐 全部" selected>🌐 全部</option>
+                </select>
+              </div>
+              <div class="col-auto">
+                <label for="filterStatus" class="filter-label" style="margin-left:16px;">啟用狀態：</label>
+                <select id="filterStatus" class="form-select form-select-sm d-inline-block" style="width: 200px;">
+                  <option value="🌐 全部" selected>🌐 全部</option>
+                </select>
+              </div>
+              <div class="col-auto">
+                <label for="questionSearchInput" class="filter-label" style="margin-left:16px;">搜尋題目：</label>
+                <input id="questionSearchInput" class="form-control form-control-sm d-inline-block" type="text"
+                      style="width: 200px;" placeholder="輸入關鍵字">
+              </div>
+              <div class="col-auto ms-auto">
+                <button type="button" class="btn btn-link p-0" id="clearFilterBtn"
+                  style="font-size:1.9rem; color:#ffa07a; margin-left:24px;"
+                  title="清除篩選" onclick="resetFilters()">
+                  <span class="material-icons">cleaning_services</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        <div class="table-responsive" style="max-height:70vh; overflow:auto;">
+          <table class="table table-bordered table-hover align-middle" id="questionTable">
+            <thead class="table-light">
+              <tr>
+                <!-- 注意：不顯示序號 -->
+                <th class="sortable" data-field="出處" data-sort-type="source" style="width: var(--col-source);">出處</th>
+                <th class="sortable" data-field="題型" data-sort-type="text"   style="width: var(--col-type);">題型</th>
+                <th class="sortable qb-text-start" data-field="題目" data-sort-type="text" style="min-width: var(--col-title);">題目</th>
+                <th class="sortable" data-field="出題次數" data-sort-type="num" style="width: var(--col-asked);">出題次數</th>
+                <th class="sortable" data-field="答對次數" data-sort-type="num" style="width: var(--col-correct);">答對次數</th>
+                <th class="sortable" data-field="答對率"   data-sort-type="rate" style="width: var(--col-rate);">答對率</th>
+                <th class="sortable" data-field="命題者"   data-sort-type="text" style="width: var(--col-owner);">命題者</th>
+                <th class="sortable" data-field="啟用狀態" data-sort-type="text" style="width: var(--col-status);">啟用狀態</th>
+              </tr>
+            </thead>
+            <tbody id="questionTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ➕ 添加題目 Modal（縮窄、留邊距、間距足） -->
+<div class="modal fade" id="addQuestionModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <div class="w-100 text-center">
+          <span style="font-size:1.6rem; font-weight:700; color:#ffa07a;">
+            <i class="material-icons align-middle" style="font-size:2.2rem;">playlist_add</i> 添加題目
+          </span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <!-- 一、出處 -->
+        <div class="row mb-4">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">出處分類</label>
+            <select class="form-select" id="sourceLeft" onchange="updateSourceRight()">
+              <option>工作手冊</option>
+              <option>工作手冊附件</option>
+              <option>診治指引</option>
+              <option>追管系統操作</option>
+              <option>銷案品管外部稽核審查基準</option>
+              <option>其他</option>
+            </select>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">出處章節/文字</label>
+            <div id="sourceRightContainer">
+              <!-- 這裡會被 updateSourceRight() 置換成 select(章節) 或 input(其他) -->
+              <select class="form-select" id="sourceRightSelect"></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 二、題型 -->
+        <div class="mb-4">
+          <label class="form-label">題型</label>
+          <select class="form-select" id="questionType" onchange="renderAnswerInputs()">
+            <option>是非</option>
+            <option>單選</option>
+            <option>複選</option>
+          </select>
+        </div>
+
+        <!-- 三、題目 -->
+        <div class="mb-4">
+          <label class="form-label">題目</label>
+          <textarea class="form-control" id="questionText" rows="3" placeholder="請輸入題目內容"></textarea>
+        </div>
+
+        <!-- 四、答案（依題型生成） -->
+        <div class="mb-4" id="answerArea"></div>
+
+        <!-- 五、提示（新增） -->
+        <div class="mb-4">
+          <label class="form-label">提示（選填）</label>
+          <textarea class="form-control" id="hintText" rows="3" placeholder="地段答錯時會顯示該處文字，可填答案在哪一頁或哪份文件中，地段可較有效率地查詢到答案"></textarea>
+        </div>
+
+        <!-- 六、提示圖（新增） -->
+        <div class="mb-4">
+            <label class="form-label">提示圖（選填）</label>
+            <button type="button" id="addReferenceImageBtn" class="btn btn-outline-primary d-flex align-items-center gap-2">
+              <i class="bi bi-image"></i> 加入圖片
+            </button>
+            <div id="referencePreviewContainer" class="mt-3"></div>
+            <small>地段答錯時會顯示該處圖片，可貼上答案來源的截圖，地段可較有效率地查詢到答案</small>
+        </div>        
+      </div>
+
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-soft-primary" onclick="submitNewQuestion()">提交</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 📘 題目檢視與審核模塊 -->
+<div class="modal fade" id="questionViewModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <div class="w-100 text-center">
+          <span style="font-size:1.6rem;font-weight:700;color:#ffa07a;">
+            <i class="material-icons align-middle" style="font-size:2.2rem;">visibility</i>
+            題目檢視與審核
+          </span>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- 🧩 一、題目內容區 -->
+        <section id="questionViewSection">
+          <!-- 出處與題型 -->
+          <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">出處</label>
+              <input type="text" id="viewSource" class="form-control" readonly>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">題型</label>
+              <input type="text" id="viewType" class="form-control" readonly>
+            </div>
+          </div>
+
+          <!-- 題目 -->
+          <div class="mb-4">
+            <label class="form-label">題目</label>
+            <textarea id="viewQuestionText" class="form-control" rows="3" readonly></textarea>
+          </div>
+
+          <!-- 選項 (單選 / 複選題才顯示) -->
+          <div class="mb-4" id="viewOptionsArea"></div>
+
+          <!-- 正確答案 -->
+          <div class="mb-4">
+            <label class="form-label">正確答案</label>
+            <input type="text" id="viewAnswer" class="form-control" readonly>
+          </div>
+
+          <!-- 提示 -->
+          <div class="mb-4">
+            <label class="form-label">提示</label>
+            <textarea id="viewHintText" class="form-control" rows="3" readonly></textarea>
+          </div>
+
+          <!-- 提示圖 -->
+          <div class="mb-4">
+            <label class="form-label">提示圖</label>
+            <div id="viewReferenceContainer" class="d-flex flex-wrap gap-2"></div>
+            <button type="button" id="btnEditReference" class="btn btn-outline-primary mt-2 d-none">
+              <i class="bi bi-image"></i> 提示圖
+            </button>
+          </div>
+        </section>
+
+        <hr class="my-4">
+
+        <!-- 🧩 二、審核區 -->
+        <section id="questionReviewSection">
+          <h5 class="fw-bold mb-3 text-secondary">
+            <i class="material-icons align-middle me-1" style="color:#ffa07a;">rule</i>
+            審核資訊
+          </h5>
+
+          <div class="table-responsive mb-3">
+            <table class="table table-bordered align-middle" id="reviewTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 15%;">審核者</th>
+                  <th style="width: 20%;">審核結果</th>
+                  <th style="width: 45%;">退件原因</th>
+                  <th style="width: 20%;">審核時間</th>
+                </tr>
+              </thead>
+              <tbody id="reviewTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- 控制按鈕 -->
+          <div class="text-center mt-4">
+            <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">關閉</button>
+            <button type="button" id="btnSubmitReview" class="btn btn-soft-primary" onclick="submitReview()" disabled>提交審核</button>
+            <button type="button" id="btnResubmit" class="btn btn-soft-success" style="display:none;">
+              <i class="material-icons align-middle me-1">restart_alt</i> 重新送審
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 🖼️ 題庫專用：加入圖片 Modal -->
+<div class="modal fade" id="pasteImageModal_question" tabindex="-1" aria-labelledby="pasteImageModalLabel_question" aria-hidden="true" data-bs-keyboard="false" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-lg" style="margin:1.8rem auto;">
+    <div class="modal-content" style="padding:1rem; border:3px solid #aaa; background-color:#fff;">
+      <div class="modal-header" style="padding:1rem 2rem;">
+        <h5 class="modal-title">加入圖片</h5>
+      </div>
+      <div class="modal-body" style="padding:2rem;">
+        <div id="pasteImageArea_question"
+             contenteditable="true"
+             style="border:1px dashed #ccc;
+                    height:50px;
+                    padding:8px 12px;
+                    font-size:14px;
+                    line-height:20px;
+                    overflow:auto;">
+          請在此處按 Ctrl+V 貼上圖片
+        </div>
+        <br>
+        你加入的圖片會呈現在下方👇
+        <img id="pasteImagePreview_question" style="display:none; margin-top:10px; max-width:100%;">
+      </div>
+      <div class="modal-footer" style="padding:1.5rem 2rem;">
+        <button type="button" class="btn btn-outline-danger me-auto" id="removePastedImage_question">
+          <span class="material-icons" style="vertical-align:middle;">close</span>
+          移除預覽圖
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="confirmPasteImage_question">套用</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 確定提交 (題庫專用) -->
+<div class="modal fade" id="confirmAddQuestionModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+    <div class="modal-content" style="min-height: 440px; display: flex; flex-direction: column; justify-content: center;">
+      <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+        <dotlottie-wc src="https://lottie.host/d016a098-1d3f-4830-afed-803d3155bbb9/FH0ctHzVih.lottie" autoplay loop style="width:100%;height:100%;"></dotlottie-wc>
+        <h2 style="margin: 32px 0 0 0; font-size: 2.5rem; font-weight: bold; text-align:center;">
+          確定提交？
+        </h2>
+      </div>
+      <div class="modal-footer justify-content-center border-0" style="padding-top: 8px;">
+        <button type="button" class="custom-btn custom-btn-secondary" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">關閉</button>
+        <button type="button" class="custom-btn" id="confirmAddQuestionBtn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+      </div>
+      <br>
+    </div>
+  </div>
+</div>
+
+<!-- 提交完成 (題庫專用) -->
+<div class="modal fade" id="updateAddQuestionCompleteModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+    <div class="modal-content" style="min-height: 410px; display: flex; flex-direction: column; justify-content: center;">
+      <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">        
+        <!-- 直接嵌入 Lottie 動畫 -->
+        <dotlottie-player 
+          src="https://lottie.host/d753c08b-422f-464c-b429-462876070a8b/G9ruIpSvEo.lottie"
+          speed="1.5"
+          style="width:170px; height:170px;">
+        </dotlottie-player>
+        <h2 style="margin: 32px 0 0 0; font-size: 2.3rem; font-weight: bold; text-align:center;">
+          <span id="updateAddQuestionMessage">提交完成</span>
+        </h2>
+      </div>
+      <div class="modal-footer justify-content-center border-0" style="padding-top: 8px;">
+        <button type="button" class="custom-btn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+      </div>
+      <br>
+    </div>
+  </div>
+</div>
+
+<!-- ⏳ 圖片上傳中提示 -->
+<div class="modal fade" id="uploadTip" tabindex="-1"
+     aria-hidden="true"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="min-height: 320px;">
+      <div class="modal-body text-center" style="padding-top: 48px; padding-bottom: 32px;">
+        <div class="spinner-border mb-4" style="width: 3rem; height: 3rem;"></div>
+        <div style="font-size:1.5rem; letter-spacing:2px;" class="mb-3">
+          請稍候，正在上傳圖片...
+        </div>
+        <div class="progress" style="height: 25px; margin: 0 40px;">
+          <div id="uploadProgressBar"
+               class="progress-bar progress-bar-striped progress-bar-animated"
+               role="progressbar"
+               style="width: 0%;"
+               aria-valuemin="0"
+               aria-valuemax="100">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let qSortField = null, qSortDir = 1;   // 1 升冪, -1 降冪
+  let lastRenderedRows = null;           // 保留上次渲染的列（避免改動快取原始順序
+  
+  // 渲染題庫表（可選：套用當前排序）
+  function renderQuestionTable(applyCurrentSort = false){
+    const qData = cachedDisposalData?.questions;
+    if (!qData || qData.length <= 1) return;
+
+    const headers = qData[0];
+    let rows = getRowsCopy();
+
+    const idxSerial  = headers.indexOf('序號');
+    const idxSrc     = headers.indexOf('出處');
+    const idxType    = headers.indexOf('題型');
+    const idxTitle   = headers.indexOf('題目');
+    const idxAsked   = headers.indexOf('出題次數');
+    const idxCorrect = headers.indexOf('答對次數');
+    const idxRate    = headers.indexOf('答對率');
+    const idxOwner   = headers.indexOf('命題者');
+    const idxStatus  = headers.indexOf('啟用狀態');
+
+    const keyword   = document.getElementById('questionSearchInput')?.value.trim();
+    const selSrc    = document.getElementById('filterSource')?.value;
+    const selType   = document.getElementById('filterType')?.value;
+    const selOwner  = document.getElementById('filterOwner')?.value;
+    const selStatus = document.getElementById('filterStatus')?.value;
+
+    rows = rows.filter(r=>{
+      const title  = String(r[idxTitle]  || "");
+      const src    = String(r[idxSrc]    || "");
+      const type   = String(r[idxType]   || "");
+      const owner  = String(r[idxOwner]  || "");
+      const status = String(r[idxStatus] || "");
+
+      const matchKeyword = !keyword || title.includes(keyword);
+      const matchSource  = selSrc  === "🌐 全部" || src    === selSrc;
+      const matchType    = selType === "🌐 全部" || type   === selType;
+      const matchOwner   = selOwner=== "🌐 全部" || owner  === selOwner;
+
+      let matchStatus = true;
+      if (selStatus !== "🌐 全部") {
+        if (selStatus === "⚠️ 尚未啟用") {
+          // ✅ 抓出所有不是 ✅ 啟用 / 🚫 停用 的題目
+          matchStatus = (status !== "✅ 啟用" && status !== "🚫 停用");
+        } else {
+          matchStatus = (status === selStatus);
+        }
+      }
+
+      return matchKeyword && matchSource && matchType && matchOwner && matchStatus;
+    });
+
+    const displayRows = applyCurrentSort && qSortField
+      ? sortRows(rows, headers, qSortField, qSortDir)
+      : rows;
+
+    lastRenderedRows = displayRows;
+
+    const tbody = document.getElementById('questionTableBody');
+    tbody.innerHTML = '';
+
+    displayRows.forEach(r => {
+      const serial = r[idxSerial];
+      const tr = document.createElement('tr');
+
+      // 其他欄位
+      tr.innerHTML = `
+        <td>${r[idxSrc] ?? ''}</td>
+        <td>${r[idxType] ?? ''}</td>
+        <td class="qb-text-start"
+            onclick="openQuestionViewModal(${serial})">${r[idxTitle] ?? ''}</td>
+        <td>${r[idxAsked] ?? 0}</td>
+        <td>${r[idxCorrect] ?? 0}</td>
+        <td>${(Number(r[idxRate]||0)*100).toFixed(2)}%</td>
+        <td>${r[idxOwner] ?? ''}</td>
+      `;
+
+      const statusCell = document.createElement("td");
+      statusCell.textContent = r[idxStatus] || "";
+      tr.appendChild(statusCell);
+
+      tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('#questionTable th.sortable').forEach(th=>{
+      th.classList.remove('sorted-asc','sorted-desc');
+      if (th.dataset.field === qSortField) {
+        th.classList.add(qSortDir===1 ? 'sorted-asc':'sorted-desc');
+      }
+    });
+  }
+
+
+  //清除篩選功能
+  function resetFilters(){
+    document.getElementById("filterSource").value = "🌐 全部";
+    document.getElementById("filterType").value   = "🌐 全部";
+    document.getElementById("filterOwner").value  = "🌐 全部";
+    document.getElementById("filterStatus").value = "🌐 全部";
+    document.getElementById("questionSearchInput").value = "";
+    renderQuestionTable(true);
+  }
+
+  //建立初始化下拉選單
+  function initQuestionFilters() {
+    const qData = cachedDisposalData?.questions;
+    if (!qData || qData.length <= 1) return;
+
+    const headers = qData[0];
+    const rows = qData.slice(1);
+
+    const idxSrc   = headers.indexOf("出處");
+    const idxType  = headers.indexOf("題型");
+    const idxOwner = headers.indexOf("命題者");
+    const idxStatus = headers.indexOf("啟用狀態");
+
+    let sources  = [...new Set(rows.map(r => r[idxSrc]   || ""))].filter(v => v);
+    let types    = [...new Set(rows.map(r => r[idxType]  || ""))].filter(v => v);
+    let owners   = [...new Set(rows.map(r => r[idxOwner] || ""))].filter(v => v);
+    let statuses = [...new Set(rows.map(r => r[idxStatus] || ""))].filter(v => v);
+
+    // ✅ 出處排序：依 sourceSortKey 升冪
+    sources.sort((a,b)=>{
+      const ka = sourceSortKey(a);
+      const kb = sourceSortKey(b);
+      if (ka[0] !== kb[0]) return ka[0] - kb[0];
+      if (ka[1] !== kb[1]) return ka[1] - kb[1];
+      return ka[2].localeCompare(kb[2], 'zh-Hant');
+    });
+
+    // ✅ 題型、命題者字典序排序
+    types.sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+    owners.sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+
+    // ✅ 啟用狀態處理（⚠️ 尚未啟用為常駐）
+    const statusSel = document.getElementById("filterStatus");
+    const finalStatuses = ["✅ 啟用", "🚫 停用", "⚠️ 尚未啟用"];
+
+    // 填入下拉（先加 🌐 全部，再加其他）
+    const srcSel   = document.getElementById("filterSource");
+    const typeSel  = document.getElementById("filterType");
+    const ownerSel = document.getElementById("filterOwner");
+
+    srcSel.innerHTML   = `<option value="🌐 全部">🌐 全部</option>`;
+    typeSel.innerHTML  = `<option value="🌐 全部">🌐 全部</option>`;
+    ownerSel.innerHTML = `<option value="🌐 全部">🌐 全部</option>`;
+    statusSel.innerHTML = `<option value="🌐 全部">🌐 全部</option>`;
+
+    sources.forEach(v=>{
+      const opt = document.createElement("option");
+      opt.value = v; opt.text = v;
+      srcSel.appendChild(opt);
+    });
+    types.forEach(v=>{
+      const opt = document.createElement("option");
+      opt.value = v; opt.text = v;
+      typeSel.appendChild(opt);
+    });
+    owners.forEach(v=>{
+      const opt = document.createElement("option");
+      opt.value = v; opt.text = v;
+      ownerSel.appendChild(opt);
+    });
+    finalStatuses.forEach(v=>{
+      const opt = document.createElement("option");
+      opt.value = v; opt.text = v;
+      statusSel.appendChild(opt);
+    });
+
+    // ✅ 預設選「🌐 全部」
+    statusSel.value = "🌐 全部";
+  }
+
+  // 排序工具
+  function sortRows(rows, headers, field, dir){
+    const idx = headers.indexOf(field);
+    if (idx < 0) return rows;
+
+    const type = document.querySelector(`#questionTable th[data-field="${field}"]`)?.dataset?.sortType || 'text';
+    const num = (v)=>Number(v)||0;
+
+    const collator = new Intl.Collator('zh-Hant');
+
+    rows.sort((a,b)=>{
+      let va=a[idx], vb=b[idx];
+
+      if (type==='num') return (num(va)-num(vb))*dir;
+      if (type==='rate') return (parseFloat(va||0)-parseFloat(vb||0))*dir;
+      if (type==='source'){
+        const ka = sourceSortKey(va), kb = sourceSortKey(vb);
+        // 先比群組
+        if (ka[0]!==kb[0]) return (ka[0]-kb[0])*dir;
+        // 再比章數
+        if (ka[1]!==kb[1]) return (ka[1]-kb[1])*dir;
+        // 最後比字串
+        return collator.compare(ka[2], kb[2]) * dir;
+      }
+      // 文字排序
+      return collator.compare(String(va||''), String(vb||'')) * dir;
+    });
+
+    return rows;
+  }
+
+  // 解析「出處」的排序 key：依群組 → 章數 → 全字串
+  // 群組順序（可調）：本文(1) → 附件(2) → 診治指引(3) → 其他(9)
+  function sourceSortKey(s) {
+    s = String(s || '');
+    let group = 9, chap = 999;
+
+    if (s.startsWith('工作手冊附件')) group = 2;   // 先判斷附件
+    else if (s.startsWith('工作手冊')) group = 1;  // 再判斷本文
+    else if (s.startsWith('診治指引')) group = 3;
+
+    // 嘗試抓「第 N 章」中的數字，避免 "1" 和 "12" 排在一起
+    const m = s.match(/第\s*(\d+)\s*章/);
+    if (m) chap = parseInt(m[1], 10);
+
+    if (group === 1 || group === 2) {
+      // ✅ 工作手冊本文/附件：同章先本文 (1)，再附件 (2)
+      return [chap, group, s];
+    }
+
+    if (group === 3) {
+      // ✅ 診治指引：依章數排序
+      return [1000, chap, s];  // 保證排在手冊之後
+    }
+
+    // ✅ 其他：永遠最後
+    return [9999, 9999, s];
+  }
+
+
+
+  // 綁定表頭點擊排序（所有欄位）
+  function attachSortHandlers(){
+    document.querySelectorAll('#questionTable th.sortable').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const field = th.dataset.field;
+        // 切換方向
+        qSortDir = (qSortField===field) ? -qSortDir : 1;
+        qSortField = field;
+
+        // 用目前 headers 與 lastRenderedRows 重新排序
+        const qData = cachedDisposalData?.questions;
+        if (!qData || qData.length<=1) return;
+
+        const headers = qData[0];
+        const baseRows = lastRenderedRows?.length ? lastRenderedRows.map(r=>r.slice()) : getRowsCopy();
+        const sorted = sortRows(baseRows, headers, qSortField, qSortDir);
+        lastRenderedRows = sorted;
+
+        // 渲染
+        renderQuestionTable(true);
+      });
+    });
+  }
+
+  // 題庫彈窗打開時就載入內容
+  document.getElementById('questionBankModal')
+    .addEventListener('shown.bs.modal', ()=>{
+      initQuestionFilters();       // ✅ 初始化篩選選項
+      renderQuestionTable(false);  // 初次載入：原始順序
+      attachSortHandlers();        // 綁排序
+    });
+
+
+  // 取得資料列（不包含表頭）複本
+  function getRowsCopy(){
+    const qData = cachedDisposalData?.questions;
+    if (!qData || qData.length <= 1) return [];
+    return qData.slice(1).map(r => r.slice());
+  }
+
+  // 依左側分類重建右側容器：本文/附件(1~14)、診治指引(1~12)、其他(輸入)
+  function updateSourceRight(){
+    const left = document.getElementById('sourceLeft').value;
+    const wrap = document.getElementById('sourceRightContainer');
+    const rightCol = wrap.closest(".col-md-6");   // 取得整個右側區塊 (label + input)
+
+    // 需要顯示右側的四種情況
+    const needRight = ["工作手冊", "工作手冊附件", "診治指引", "其他"];
+
+    if (!needRight.includes(left)) {
+      // 隱藏整塊
+      if (rightCol) rightCol.style.display = "none";
+      return;
+    } else {
+      if (rightCol) rightCol.style.display = "";  // 顯示回來
+    }
+
+    if (left==='其他'){
+      wrap.innerHTML = `<input type="text" class="form-control" id="sourceRightInput" placeholder="請輸入出處描述">`;
+      return;
+    }
+
+    // 重建成 select
+    wrap.innerHTML = `<select class="form-select" id="sourceRightSelect"></select>`;
+    const sel = document.getElementById('sourceRightSelect');
+    const maxChap = (left==='診治指引') ? 12 : 14;  // 本文/附件=14；診治指引=12
+    let html = '';
+    for (let i=1;i<=maxChap;i++) html += `<option>第${i}章</option>`;
+    sel.innerHTML = html;
+  }
+
+// === 題型切換答案輸入 ===
+  function renderAnswerInputs(){
+    const type = document.getElementById('questionType').value;
+    const area = document.getElementById('answerArea');
+    area.innerHTML = '';
+    if (type==='是非'){
+      area.innerHTML = `
+        <label class="form-label">答案</label>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" name="tfAns" value="是" id="tfYes">
+          <label class="form-check-label" for="tfYes">是</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="tfAns" value="否" id="tfNo">
+          <label class="form-check-label" for="tfNo">否</label>
+        </div>`;
+    }else{
+      const isSingle = (type==='單選');
+      let html = `<label class="form-label">選項與答案</label>`;
+      ['A','B','C','D','E'].forEach((ch,i)=>{
+        html += `
+          <div class="d-flex align-items-center answer-row">
+            <input class="form-check-input me-2" type="${isSingle?'radio':'checkbox'}" name="optPick" value="${ch}" id="pick_${ch}">
+            <input type="text" class="form-control" id="opt_${ch}" placeholder="請入選項內容">
+          </div>`;
+      });
+      area.innerHTML = html;
+    }
+  }
+
+  function openAddQuestionModal() {
+    updateSourceRight();
+    renderAnswerInputs();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("addQuestionModal")).show();
+  }
+
+  // 提交新題目（四區必填 → confirm → 寫後端 → 完成 modal → 重新渲染）
+  function submitNewQuestion() {
+    const left = document.getElementById('sourceLeft').value;
+    const rightSel = document.getElementById('sourceRightSelect');
+    const rightInp = document.getElementById('sourceRightInput');
+    const type = document.getElementById('questionType').value;
+    const text = document.getElementById('questionText').value.trim();
+    const hint = document.getElementById('hintText').value.trim();
+
+    // ✅ 判斷出處
+    const needRight = ["工作手冊", "工作手冊附件", "診治指引", "其他"];
+    let sourceStr = left;
+    if (needRight.includes(left)) {
+      if (left === "其他") {
+        sourceStr = rightInp ? rightInp.value.trim() : "";
+      } else {
+        const right = rightSel ? rightSel.value : "";
+        sourceStr = left + right;
+      }
+    }
+
+    // ✅ 檢查必填
+    if (!left || !type || !text || !sourceStr) {
+      alert('「出處」、「題型」、「題目」、「答案」四區都要填/選。');
+      return;
+    }
+
+    // 蒐集答案與選項
+    let A = '', B = '', C = '', D = '', E = '', ans = '';
+    if (type === '是非') {
+      ans = document.querySelector('input[name="tfAns"]:checked')?.value || '';
+      if (!ans) {
+        alert('請選擇「是/否」答案');
+        return;
+      }
+    } else {
+      const letters = ['A', 'B', 'C', 'D', 'E'];
+      const picks = Array.from(document.querySelectorAll('input[name="optPick"]'));
+      const texts = letters.map(ch => document.getElementById('opt_' + ch).value.trim());
+
+      if (texts.some(t => !t)) {
+        alert('請將 A~E 選項全部填滿');
+        return;
+      }
+
+      const chosen = picks.filter(p => p.checked).map(p => p.value);
+      if (type === '單選') {
+        if (chosen.length !== 1) {
+          alert('請勾選 1 個正解');
+          return;
+        }
+        ans = chosen[0];
+      } else {
+        if (chosen.length === 0) {
+          alert('請勾選複選題的正解');
+          return;
+        }
+        ans = chosen.join('.');
+      }
+      [A, B, C, D, E] = texts;
+    }
+
+    // === 新增：建立審核資訊 JSON ===
+    const author = document.getElementById("name")?.innerText.trim() || "";
+    const bureauStaff = accountData
+      .filter(acc => acc["單位名稱"] === "衛生局" && acc["姓名"] !== author)
+      .map(acc => acc["姓名"]);
+
+    const reviewers = {};
+    bureauStaff.forEach(name => {
+      reviewers[name] = { decision: "", reason: "", time: "" };
+    });
+
+    const statusStr = "✏️ 待審核";
+    const reviewInfo = { reviewers };
+
+    // === 顯示「確定提交」modal ===
+    const confirmEl = document.getElementById('confirmAddQuestionModal');
+    const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmEl);
+    confirmModal.show();
+
+    // === 綁定「確定」按鈕 ===
+    const okBtn = document.getElementById('confirmAddQuestionBtn');
+    okBtn.onclick = async function () {
+      confirmModal.hide();
+
+    // 1️⃣ 若有圖片 → 比照銷案審核流程顯示上傳進度
+    let refUrls = [];
+
+    if (referenceImageCache.length === 0) {
+      // 沒圖片 → 直接略過
+    } else {
+      const uploadModalEl = document.getElementById("uploadTip");
+      const uploadModal = new bootstrap.Modal(uploadModalEl);
+      const progressBar = document.getElementById("uploadProgressBar");
+
+      uploadModal.show();
+
+      try {
+        const total = referenceImageCache.length;
+        let completed = 0;
+
+        for (const img of referenceImageCache) {
+          const base64Data = img.base64;
+          const filename = `question_${Date.now()}`;
+
+          await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(url => {
+                refUrls.push(url);
+
+                completed++;
+                const percent = Math.round((completed / total) * 100);
+                progressBar.style.width = `${percent}%`;
+                progressBar.innerText = `${percent}%`;
+
+                resolve(url);
+              })
+              .withFailureHandler(err => {
+                alert("圖片上傳失敗：" + err.message);
+                reject(err);
+              })
+              .uploadQuestionImageBase64(base64Data, "題庫_提示圖", filename);
+          });
+        }
+
+        // ✔️ 關閉上傳中 modal（維持 100%）
+        uploadModal.hide();
+
+        // ✔️ 等 modal 關閉動畫結束後歸零（與銷案審核一致）
+        const handler = () => {
+          uploadModalEl.removeEventListener("hidden.bs.modal", handler);
+          progressBar.style.width = "0%";
+          progressBar.innerText = "0%";
+        };
+        uploadModalEl.addEventListener("hidden.bs.modal", handler);
+
+      } catch (e) {
+        uploadModal.hide();
+        progressBar.style.width = "0%";
+        progressBar.innerText = "0%";
+        alert("圖片上傳過程發生錯誤：" + e.message);
+      }
+    }
+
+      // 2️⃣ 組合答案 JSON（寫入答案欄）
+      const answerJSON = JSON.stringify({
+        ans: ans,
+        hint: hint,
+        refs: refUrls
+      });
+
+      // 3️⃣ 建立題目物件
+      const newQ = {
+        出處: sourceStr,
+        題型: type,
+        題目: text,
+        A, B, C, D, E,
+        答案: answerJSON, // ✅ 答案欄為 JSON 格式
+        出題次數: 0,
+        答對次數: 0,
+        答對率: 0,
+        命題者: author,
+        啟用狀態: statusStr,
+        審核資訊: JSON.stringify(reviewInfo)
+      };
+
+      // 4️⃣ 更新前端快取（先加暫時序號）
+      if (!cachedDisposalData?.questions) cachedDisposalData = { questions: [] };
+      const headers = cachedDisposalData.questions[0] ||
+        ["序號", "出處", "題型", "題目", "A", "B", "C", "D", "E", "答案",
+          "出題次數", "答對次數", "答對率", "命題者", "啟用狀態", "審核資訊"];
+      if (!cachedDisposalData.questions[0]) cachedDisposalData.questions[0] = headers;
+
+      const nextSerial = cachedDisposalData.questions.length;
+      const tempRow = headers.map(h => {
+        if (h === "序號") return nextSerial;
+        if (h === "啟用狀態") return statusStr;
+        if (h === "審核資訊") return JSON.stringify(reviewInfo);
+        return newQ[h] ?? "";
+      });
+      cachedDisposalData.questions.push(tempRow);
+      renderQuestionTable(true);
+
+      // 關閉添加題目 modal
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('addQuestionModal')).hide();
+
+      // 5️⃣ 顯示「提交完成」動畫 modal
+      const doneEl = document.getElementById('updateAddQuestionCompleteModal');
+      document.getElementById("updateAddQuestionMessage").innerText = "題目新增完成";
+      bootstrap.Modal.getOrCreateInstance(doneEl).show();
+
+      // 6️⃣ 背後送出後端，完成後覆蓋暫存列
+      google.script.run.withSuccessHandler(function (addedRow) {
+        cachedDisposalData.questions[cachedDisposalData.questions.length - 1] = addedRow;
+        renderQuestionTable(true);
+      }).addQuestion(newQ);
+
+      // 7️⃣ 清除圖片快取
+      referenceImageCache = [];
+      document.getElementById("referencePreviewContainer").innerHTML = "";
+      document.getElementById("pasteImagePreview_question").style.display = "none";
+    };
+  }
+
+
+  // 對外：按鈕可呼叫顯示題庫
+  function openQuestionBank(){
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('questionBankModal')).show();
+  }
+
+  // 預設初始化：讓「添加題目」一開就正確狀態（供直接呼叫時用）
+  document.addEventListener('DOMContentLoaded', () => {
+    // ✅ 預備出處右側與答案區模板
+    updateSourceRight();
+    renderAnswerInputs();
+
+    // ✅ 初始化三個篩選下拉選單
+    initQuestionFilters();
+
+    // ✅ 綁定事件：下拉選單或輸入關鍵字時都會重新渲染
+    ["filterSource","filterType","filterOwner","filterStatus"].forEach(id=>{
+      document.getElementById(id)?.addEventListener("change", ()=>renderQuestionTable(true));
+    });
+    const searchInput = document.getElementById('questionSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => renderQuestionTable(true));
+    }
+  });
+
+  // 🧩 開啟題目 + 審核綜合模塊
+  function openQuestionViewModal(serial) {
+    const qData = cachedDisposalData?.questions;
+    if (!qData) return;
+    const headers = qData[0];
+    const rows = qData.slice(1);
+
+    const idxSerial = headers.indexOf("序號");
+    const row = rows.find(r => r[idxSerial] == serial);
+    if (!row) return;
+
+    const modalEl = document.getElementById("questionViewModal");
+    modalEl.dataset.serialNo = serial;  // ✅ 把序號存進 modal 屬性裡
+
+    const status = String(row[headers.indexOf("啟用狀態")] || "");
+    const owner = String(row[headers.indexOf("命題者")] || "");
+    const reviewJsonStr = row[headers.indexOf("審核資訊")] || '{"reviewers":{}}';
+    const reviewInfo = JSON.parse(reviewJsonStr);
+
+    const isOwner = (owner === currentUser["姓名"]);
+    const selfReview = reviewInfo.reviewers?.[currentUser["姓名"]] || {};
+    const hasReviewed = selfReview.decision === "通過" || selfReview.decision === "退件";
+
+    // ===== 狀態邏輯 =====
+    const canEditReview   = ((status === "✏️ 待審核" || status === "❌ 退件") && !isOwner && !hasReviewed);
+    const canEditQuestion = (status === "❌ 退件" && isOwner);
+    const canResubmit     = (status === "❌ 退件" && isOwner);
+    const canViewOnly     = (
+      (status === "✅ 通過" && isOwner) ||
+      (status === "✅ 啟用" && isOwner) ||
+      (status === "🚫 停用" && isOwner)
+    );
+
+    // 綁定重新送審按鈕
+    const btnResubmit = document.getElementById("btnResubmit");
+    btnResubmit.onclick = null;
+    if (canResubmit) {
+      const serial = row[headers.indexOf("序號")];
+      btnResubmit.onclick = () => resubmitEditedQuestion(serial);
+    }
+
+    // 顯示題目內容
+    if (canEditQuestion) {
+      renderEditableQuestionSection(row, headers);
+    } else {
+      renderReadonlyQuestionSection(row, headers);
+    }
+
+    // 審核表
+    renderReviewTable(reviewInfo, currentUser["姓名"]);
+
+    // ===== 按鈕控制 =====
+    const btnSubmit = document.getElementById("btnSubmitReview");
+    const btnRe = document.getElementById("btnResubmit");
+
+    btnSubmit.style.display = canEditReview ? "" : "none";
+    btnRe.style.display = canResubmit ? "" : "none";
+
+    // ✅ 若是「已通過但尚未啟用」或「已啟用/停用」，隱藏所有編輯按鈕
+    if (canViewOnly) {
+      btnSubmit.style.display = "none";
+      btnRe.style.display = "none";
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(
+      document.getElementById("questionViewModal")
+    );
+
+    document.getElementById("btnSubmitReview").disabled = true;
+
+    modal.show();
+  }
+
+
+
+  // 🧾 審核表格渲染
+  function renderReviewTable(reviewInfo, reviewerName) {
+    const tbody = document.getElementById("reviewTableBody");
+    tbody.innerHTML = "";
+
+    const reviewers = reviewInfo.reviewers || {};
+    const allNames = Object.keys(reviewers).length > 0
+      ? Object.keys(reviewers)
+      : [reviewerName];
+
+    allNames.forEach(name => {
+      const info = reviewers[name] || {};
+      const isSelf = (name === reviewerName);
+      const editable = isSelf && !info.decision;
+
+      const tr = document.createElement("tr");
+
+      // ===== 審核者 =====
+      const tdName = document.createElement("td");
+      tdName.textContent = name;
+
+      // ===== 審核結果 =====
+      const tdDecision = document.createElement("td");
+      tdDecision.innerHTML = `
+        <label>
+          <input type="radio" name="decision_${name}" value="通過"
+            ${info.decision === "通過" ? "checked" : ""}
+            ${editable ? "" : "disabled"}> 通過
+        </label>
+        <label class="ms-2">
+          <input type="radio" name="decision_${name}" value="退件"
+            ${info.decision === "退件" ? "checked" : ""}
+            ${editable ? "" : "disabled"}> 退件
+        </label>
+      `;
+
+      // ===== 退件原因（⭐重點修正）=====
+      const tdReason = document.createElement("td");
+      const reasonInput = document.createElement("input");
+      reasonInput.type = "text";
+      reasonInput.id = `reason_${name}`;
+      reasonInput.className = "form-control";
+
+      // ⭐⭐ 關鍵：用 value，不用 innerHTML ⭐⭐
+      reasonInput.value = info.reason || "";
+
+      if (!(editable && info.decision === "退件")) {
+        reasonInput.disabled = true;
+      }
+
+      tdReason.appendChild(reasonInput);
+
+      // ===== 審核時間 =====
+      const tdTime = document.createElement("td");
+      tdTime.textContent = info.time || "";
+
+      tr.append(tdName, tdDecision, tdReason, tdTime);
+      tbody.appendChild(tr);
+
+      // ===== 綁定 radio 事件（你原本的邏輯）=====
+      if (editable) {
+        tr.querySelectorAll(`input[name="decision_${name}"]`).forEach(radio => {
+          radio.addEventListener("change", () => {
+            if (radio.value === "退件") {
+              reasonInput.disabled = false;
+            } else {
+              reasonInput.value = "";
+              reasonInput.disabled = true;
+            }
+
+            const btn = document.getElementById("btnSubmitReview");
+            if (btn) btn.disabled = false;
+          });
+        });
+      }
+    });
+  }
+
+  // ========== 🧩 題庫提示圖上傳模組 ==========
+  let referenceImageCache = []; // { base64, url }
+
+  document.getElementById("addReferenceImageBtn")?.addEventListener("click", () => {
+    const modal = new bootstrap.Modal(document.getElementById("pasteImageModal_question"));
+    document.getElementById("pasteImageModal_question").dataset.targetContainer = "referencePreviewContainer"; 
+    modal.show();
+  });
+
+  document.getElementById("editAddReferenceBtn")?.addEventListener("click", () => {
+    const modal = new bootstrap.Modal(document.getElementById("pasteImageModal_question"));
+    document.getElementById("pasteImageModal_question").dataset.targetContainer = "editReferenceContainer"; // 👈 加這行
+    modal.show();
+  });
+
+  // 處理貼上事件（保持 paste 區域乾淨）
+  document.getElementById("pasteImageArea_question")?.addEventListener("paste", function(e) {
+    e.preventDefault(); // ❗ 阻止圖片被插入 contenteditable 區域中
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const dataURL = evt.target.result;
+          const preview = document.getElementById("pasteImagePreview_question");
+          preview.src = dataURL;
+          preview.style.display = "block";
+          // 清空貼上區的內容
+          e.target.innerText = "請在此處按 Ctrl+V 貼上圖片";
+          // 暫存 base64
+          referenceImageCache = [{ base64: dataURL, url: null }];
+        };
+        reader.readAsDataURL(file);
+        return; // 若找到圖片就結束迴圈
+      }
+    }
+
+    // 若貼上的不是圖片，恢復原本提示文字
+    e.target.innerText = "請在此處按 Ctrl+V 貼上圖片";
+  });
+
+  //關閉加入圖片模塊，清除內部預覽圖
+  document.getElementById("pasteImageModal_question")?.addEventListener("hidden.bs.modal", () => {
+    const preview = document.getElementById("pasteImagePreview_question");
+    if (preview) {
+      preview.src = "";
+      preview.style.display = "none";
+    }
+  });
+
+  // 移除預覽圖
+  document.getElementById("removePastedImage_question")?.addEventListener("click", () => {
+    const modalEl = document.getElementById("pasteImageModal_question");
+    const targetId = modalEl.dataset.targetContainer || "referencePreviewContainer";
+
+    // ✅ 根據開啟模塊決定清除哪個區塊
+    const refContainer = document.getElementById(targetId);
+    if (refContainer) refContainer.innerHTML = "";
+
+    // ✅ 清空圖片快取
+    referenceImageCache = [];
+
+    // ✅ 清除模塊內預覽
+    const preview = document.getElementById("pasteImagePreview_question");
+    if (preview) {
+      preview.src = "";
+      preview.style.display = "none";
+    }
+
+    // ✅ 關閉加入圖片模塊
+    const modal = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.hide();
+  });
+
+
+  // 套用圖片
+  document.getElementById("confirmPasteImage_question")?.addEventListener("click", () => {
+    const modalEl = document.getElementById("pasteImageModal_question");
+    const targetId = modalEl.dataset.targetContainer || "referencePreviewContainer";
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+
+    // ✅ 根據呼叫來源更新對應容器
+    const container = document.getElementById(targetId);
+    if (!container) return;
+    container.innerHTML = "";
+
+    referenceImageCache.forEach((img, idx) => {
+      const imgEl = document.createElement("img");
+      imgEl.src = img.base64;
+      imgEl.style.maxWidth = "120px";
+      imgEl.style.margin = "6px";
+      imgEl.style.cursor = "pointer";
+      imgEl.classList.add("rounded", "border");
+      imgEl.title = "點擊放大預覽";
+      imgEl.addEventListener("click", () => showImagePreview(img.base64));
+      container.appendChild(imgEl);
+    });
+
+    // ✅ 清除模塊內預覽
+    const preview = document.getElementById("pasteImagePreview_question");
+    if (preview) {
+      preview.src = "";
+      preview.style.display = "none";
+    }
+  });
+
+
+  // 顯示原圖（全螢幕預覽）
+  function showImagePreview(src) {
+    // 建立 modal 元素
+    const modal = document.createElement("div");
+    modal.className = "modal fade";
+    modal.innerHTML = `
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content" style="background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center;">
+          <img src="${src}" style="max-width:95vw; max-height:95vh; object-fit:contain; border-radius:8px; box-shadow:0 0 20px rgba(255,255,255,0.2); cursor:zoom-out;">
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const bsModal = new bootstrap.Modal(modal, { backdrop: true });
+    bsModal.show();
+
+    // 點擊圖片或背景任意處可關閉
+    modal.addEventListener("click", () => bsModal.hide());
+    modal.addEventListener("hidden.bs.modal", () => modal.remove());
+  }
+
+  //提交審核題目
+  function submitReview() {
+    const modal = document.getElementById("questionViewModal");
+    const tbody = document.getElementById("reviewTableBody");
+    const serialNo = modal.dataset.serialNo;
+    const reviewer = currentUser["姓名"];
+    const btnSubmit = document.getElementById("btnSubmitReview");
+
+    let updateData = null;
+
+    const rows = tbody.querySelectorAll("tr");
+    rows.forEach(row => {
+      const radios = row.querySelectorAll(`input[name="decision_${reviewer}"]`);
+      if (radios.length > 0) {
+        let selected = [...radios].find(r => r.checked)?.value || "";
+        let reason = document.getElementById(`reason_${reviewer}`)?.value.trim() || "";
+
+        // ❗ 如果使用者沒選擇通過/退件
+        if (!selected) {
+          alert("請先選擇審核結果（通過或退件）！");
+          throw new Error("未選擇審核結果");
+        }
+
+        // ❗ 若為退件則必填原因
+        if (selected === "退件" && !reason) {
+          alert("退件必須填寫原因！");
+          throw new Error("退件原因缺失");
+        }
+
+        updateData = {
+          serialNo: serialNo,
+          reviewer: reviewer,
+          decision: selected,
+          reason: reason,
+          time: new Date().toLocaleString("zh-TW", { hour12: false }),
+        };
+      }
+    });
+
+    if (!updateData) {
+      alert("未找到可提交的資料");
+      return;
+    }
+
+    // === ✅ 顯示「確定提交？」確認視窗 ===
+    const confirmEl = document.getElementById("confirmAddQuestionModal");
+    const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmEl);
+    confirmModal.show();
+
+    const okBtn = document.getElementById("confirmAddQuestionBtn");
+    okBtn.onclick = function () {
+      confirmModal.hide();
+
+      const qData = cachedDisposalData?.questions;
+      if (qData && qData.length > 1) {
+        const headers = qData[0];
+        const idxSerial = headers.indexOf("序號");
+        const idxReview = headers.indexOf("審核資訊");
+        const idxStatus = headers.indexOf("啟用狀態");
+
+        const row = qData.find(r => r[idxSerial] == updateData.serialNo);
+        if (row) {
+          const reviewInfo = JSON.parse(row[idxReview] || '{"reviewers":{}}');
+          if (!reviewInfo.reviewers[updateData.reviewer]) {
+            reviewInfo.reviewers[updateData.reviewer] = {};
+          }
+
+          reviewInfo.reviewers[updateData.reviewer].decision = updateData.decision;
+          reviewInfo.reviewers[updateData.reviewer].reason = updateData.reason;
+          reviewInfo.reviewers[updateData.reviewer].time = updateData.time;
+          row[idxReview] = JSON.stringify(reviewInfo);
+
+          // ✅ 優先判斷：若當前審核為退件，立即標示 ❌
+          if (updateData.decision === "退件") {
+            row[idxStatus] = "❌ 退件";
+          } else {
+            // 否則再依整體狀態計算
+            const allReviewers = Object.keys(reviewInfo.reviewers || {});
+            const decisions = allReviewers.map(name => reviewInfo.reviewers[name]?.decision || "");
+            const validDecisions = decisions.filter(d => d);
+
+            let newStatus = row[idxStatus] || "✏️ 待審核";
+            if (validDecisions.length === allReviewers.length && allReviewers.length > 0) {
+              if (validDecisions.every(d => d === "通過")) newStatus = "✅ 啟用";
+              else if (validDecisions.some(d => d === "退件")) newStatus = "❌ 退件";
+            }
+            row[idxStatus] = newStatus;
+          }
+        }
+      }
+
+      // === ✅ 即時更新前端畫面 ===
+      renderQuestionTable(true);
+      bootstrap.Modal.getInstance(modal)?.hide();
+
+      const unit = getCurrentUserUnit ? getCurrentUserUnit() : "";
+      const bureauModalEl = document.getElementById("msgModal_bureau");
+      const isBureauModalOpen = bureauModalEl?.classList.contains("show");
+      if (unit === "衛生局" && isBureauModalOpen) {
+        renderBureauQuestionBlocks();
+      }
+
+      // 🎬 顯示「審核提交完成」動畫
+      const doneEl = document.getElementById("updateAddQuestionCompleteModal");
+      document.getElementById("updateAddQuestionMessage").innerText = "審核提交完成";
+      bootstrap.Modal.getOrCreateInstance(doneEl).show();
+
+      // === 🕐 再進行後端寫入（非同步，不阻塞畫面） ===
+      google.script.run.updateReviewInfo(updateData);
+    };
+  }
+
+
+
+
+  // 清空添加題目表單
+  function resetAddQuestionForm() {
+    // 原有重置動作
+    document.getElementById('sourceLeft').selectedIndex = 0;
+    updateSourceRight();
+    document.getElementById('questionType').selectedIndex = 0;
+    document.getElementById('questionText').value = "";
+    renderAnswerInputs();
+
+    // ✅ 清空提示文字
+    const hint = document.getElementById("hintText");
+    if (hint) hint.value = "";
+
+    // ✅ 清空提示圖預覽（這是你要的重點）
+    const refContainer = document.getElementById("referencePreviewContainer");
+    if (refContainer) refContainer.innerHTML = "";
+
+    // ✅ 清空圖片快取
+    referenceImageCache = [];
+  }
+
+
+  // 綁定 Modal 關閉事件
+  document.getElementById('addQuestionModal')
+    .addEventListener('hidden.bs.modal', resetAddQuestionForm);
+
+ 
+//=====================命題者退件插入編輯題目=====================
+  function renderReadonlyQuestionSection(row, headers) {
+    document.getElementById("questionViewSection").innerHTML = `
+      <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">出處</label>
+          <input type="text" id="viewSource" class="form-control" readonly>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">題型</label>
+          <input type="text" id="viewType" class="form-control" readonly>
+        </div>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">題目</label>
+        <textarea id="viewQuestionText" class="form-control" rows="3" readonly></textarea>
+      </div>
+      <div class="mb-4" id="viewOptionsArea"></div>
+      <div class="mb-4">
+        <label class="form-label">正確答案</label>
+        <input type="text" id="viewAnswer" class="form-control" readonly>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">提示</label>
+        <textarea id="viewHintText" class="form-control" rows="3" readonly></textarea>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">提示圖</label>
+        <div id="viewReferenceContainer" class="d-flex flex-wrap gap-2"></div>
+      </div>
+    `;
+
+    // 基本欄位
+    document.getElementById('viewSource').value       = row[headers.indexOf('出處')] || '';
+    document.getElementById('viewType').value         = row[headers.indexOf('題型')] || '';
+    document.getElementById('viewQuestionText').value = row[headers.indexOf('題目')] || '';
+
+    const type = row[headers.indexOf('題型')];
+    const optIds = ['A','B','C','D','E'];
+    const optionsHtml = optIds.map(ch=>{
+      const val = row[headers.indexOf(ch)];
+      return val ? `<div class="mb-2"><span class="badge bg-secondary">${ch}</span> ${val}</div>` : '';
+    }).join('');
+    document.getElementById('viewOptionsArea').innerHTML =
+      (type==='單選' || type==='複選') ? `<label class="form-label">選項</label>${optionsHtml}` : '';
+
+    // ✅ 解析答案 JSON
+    let answerObj = {};
+    try {
+      answerObj = JSON.parse(row[headers.indexOf('答案')] || "{}");
+    } catch (e) {
+      answerObj = { ans: row[headers.indexOf('答案')] || "", hint: "", refs: [] };
+    }
+
+    document.getElementById('viewAnswer').value = answerObj.ans || "";
+    document.getElementById('viewHintText').value = answerObj.hint || "";
+
+    // ✅ 顯示提示圖
+    const container = document.getElementById("viewReferenceContainer");
+    container.innerHTML = "";
+    (answerObj.refs || []).forEach(url => {
+      const img = document.createElement("img");
+      img.src = url;
+      img.style.maxWidth = "150px";
+      img.style.cursor = "pointer";
+      img.classList.add("rounded", "border");
+      img.title = "點擊放大預覽";
+      img.addEventListener("click", () => showImagePreview(url));
+      container.appendChild(img);
+    });
+  }
+
+  function renderEditableQuestionSection(row, headers) {
+    const container = document.getElementById("questionViewSection");
+    container.innerHTML = `
+      <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">出處分類</label>
+          <select class="form-select" id="editSourceLeft" onchange="updateEditSourceRight()">
+            <option>工作手冊</option>
+            <option>工作手冊附件</option>
+            <option>診治指引</option>
+            <option>追管系統操作</option>
+            <option>銷案品管外部稽核審查基準</option>
+            <option>其他</option>
+          </select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">出處章節/文字</label>
+          <div id="editSourceRightContainer">
+            <select class="form-select" id="editSourceRightSelect"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label">題型</label>
+        <select class="form-select" id="editQuestionType" onchange="renderEditAnswerInputs()">
+          <option>是非</option>
+          <option>單選</option>
+          <option>複選</option>
+        </select>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label">題目</label>
+        <textarea class="form-control" id="editQuestionText" rows="3"></textarea>
+      </div>
+
+      <div class="mb-4" id="editAnswerArea"></div>      
+
+      <div class="mb-4">
+        <label class="form-label">提示（選填）</label>
+        <textarea id="editHintText" class="form-control" rows="3" placeholder="地段答錯時會顯示該處文字，可填答案在哪一頁或哪份文件中，地段可較有效率地查詢到答案"></textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label">提示圖（選填）</label>
+        <div>
+          <button type="button" id="editAddReferenceBtn" class="btn btn-outline-primary">
+            <i class="bi bi-image"></i> 加入圖片
+          </button>
+        <div id="editReferenceContainer" class="d-flex flex-wrap gap-2 mb-2 mt-2"></div>
+        <div><small>地段答錯時會顯示該處圖片，可貼上答案來源的截圖，地段可較有效率地查詢到答案</small></div>
+      </div>
+    `;
+
+    // === 填入原始資料 ===
+    const src = row[headers.indexOf("出處")] || "";
+    const type = row[headers.indexOf("題型")] || "";
+    const text = row[headers.indexOf("題目")] || "";
+    const ans = row[headers.indexOf("答案")] || "";
+    const opts = ["A","B","C","D","E"].map(ch => row[headers.indexOf(ch)] || "");
+
+    // 填出處
+    if (src.startsWith("工作手冊附件")) {
+      document.getElementById("editSourceLeft").value = "工作手冊附件";
+      updateEditSourceRight();
+      document.getElementById("editSourceRightSelect").value = src.replace("工作手冊附件", "");
+    } else if (src.startsWith("工作手冊")) {
+      document.getElementById("editSourceLeft").value = "工作手冊";
+      updateEditSourceRight();
+      document.getElementById("editSourceRightSelect").value = src.replace("工作手冊", "");
+    } else if (src.startsWith("診治指引")) {
+      document.getElementById("editSourceLeft").value = "診治指引";
+      updateEditSourceRight();
+      document.getElementById("editSourceRightSelect").value = src.replace("診治指引", "");
+    } else if (src.startsWith("追管系統操作")) {
+      document.getElementById("editSourceLeft").value = "追管系統操作";
+      updateEditSourceRight();
+      document.getElementById("editSourceRightSelect").value = src.replace("追管系統操作", "");
+    } else if (src.startsWith("銷案品管外部稽核審查基準")) {
+      document.getElementById("editSourceLeft").value = "銷案品管外部稽核審查基準";
+      updateEditSourceRight();
+      document.getElementById("editSourceRightSelect").value = src.replace("銷案品管外部稽核審查基準", "");
+    }
+     else {
+      document.getElementById("editSourceLeft").value = "其他";
+      updateEditSourceRight();
+      document.getElementById("editSourceRightInput").value = src;
+    }
+
+    // 題型、題目
+    document.getElementById("editQuestionType").value = type;
+    renderEditAnswerInputs();
+    document.getElementById("editQuestionText").value = text;
+
+    // 解析答案（兼容舊版與新版）
+    let ansObj = {};
+    try {
+      ansObj = JSON.parse(ans);
+      if (typeof ansObj !== "object" || ansObj === null) {
+        ansObj = { ans: ans, hint: "", refs: [] };
+      }
+    } catch (e) {
+      ansObj = { ans: ans, hint: "", refs: [] };
+    }
+
+    // ✅ 填入提示（有值才顯示）
+    document.getElementById("editHintText").value = ansObj.hint || "";
+
+    // ✅ 顯示提示圖（若有）
+    const refContainer = document.getElementById("editReferenceContainer");
+    refContainer.innerHTML = "";
+    referenceImageCache = [];
+    (ansObj.refs || []).forEach(url => {
+      const imgEl = document.createElement("img");
+      imgEl.src = url;
+      imgEl.style.maxWidth = "150px";
+      imgEl.style.cursor = "pointer";
+      imgEl.classList.add("rounded", "border");
+      imgEl.addEventListener("click", () => showImagePreview(url));
+      refContainer.appendChild(imgEl);
+    });
+
+    // ✅ 根據題型勾選正確答案
+    if (type === "是非") {
+      const correctAns = ansObj.ans || ans;
+      const target = document.querySelector(`input[name="editTfAns"][value="${correctAns}"]`);
+      if (target) target.checked = true;
+    } else {
+      const correctAns = ansObj.ans || ans;
+      const picks = correctAns.split(".");
+      ["A","B","C","D","E"].forEach((ch,i)=>{
+        document.getElementById("editOpt_"+ch).value = opts[i] || "";
+        if (picks.includes(ch)) {
+          document.getElementById("editPick_"+ch).checked = true;
+        }
+      });
+    }
+
+    // 綁定上傳按鈕（開啟貼上圖片 modal）
+    document.getElementById("editAddReferenceBtn").addEventListener("click", () => {
+      const modalEl = document.getElementById("pasteImageModal_question");
+      modalEl.dataset.targetContainer = "editReferenceContainer";
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    });
+
+  }
+
+  function updateEditSourceRight() {
+    const left = document.getElementById('editSourceLeft').value;
+    const wrap = document.getElementById('editSourceRightContainer');
+    const rightCol = wrap.closest(".col-md-6"); // 找整個右側欄位
+
+    // 需要顯示右側的出處類型
+    const needRight = ["工作手冊", "工作手冊附件", "診治指引", "其他"];
+
+    // 若不在清單內 → 隱藏整塊
+    if (!needRight.includes(left)) {
+      if (rightCol) rightCol.style.display = "none";
+      return;
+    } else {
+      if (rightCol) rightCol.style.display = ""; // 顯示
+    }
+
+    // 若選「其他」→ 輸入框
+    if (left === '其他') {
+      wrap.innerHTML = `<input type="text" class="form-control" id="editSourceRightInput" placeholder="請輸入出處描述">`;
+      return;
+    }
+
+    // 其餘（工作手冊/附件/診治指引）→ 下拉章節
+    wrap.innerHTML = `<select class="form-select" id="editSourceRightSelect"></select>`;
+    const sel = document.getElementById('editSourceRightSelect');
+    const maxChap = (left === '診治指引') ? 12 : 14;
+    let html = '';
+    for (let i = 1; i <= maxChap; i++) html += `<option>第${i}章</option>`;
+    sel.innerHTML = html;
+  }
+
+  function renderEditAnswerInputs() {
+    const type = document.getElementById('editQuestionType').value;
+    const area = document.getElementById('editAnswerArea');
+    area.innerHTML = '';
+    if (type === '是非') {
+      area.innerHTML = `
+        <label class="form-label">答案</label>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" name="editTfAns" value="是" id="editTfYes">
+          <label class="form-check-label" for="editTfYes">是</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="editTfAns" value="否" id="editTfNo">
+          <label class="form-check-label" for="editTfNo">否</label>
+        </div>`;
+    } else {
+      const isSingle = (type === '單選');
+      area.innerHTML = `
+        <label class="form-label">選項與答案</label>
+        ${['A','B','C','D','E'].map(ch => `
+          <div class="d-flex align-items-center mb-2">
+            <input class="form-check-input me-2" type="${isSingle?'radio':'checkbox'}"
+                  name="editOptPick" value="${ch}" id="editPick_${ch}">
+            <input type="text" class="form-control" id="editOpt_${ch}" placeholder="選項 ${ch}">
+          </div>`).join('')}
+      `;
+    }
+  }
+
+  async function resubmitEditedQuestion(serial) {
+    const left = document.getElementById('editSourceLeft').value;
+    const rightSel = document.getElementById('editSourceRightSelect');
+    const rightInp = document.getElementById('editSourceRightInput');
+    const type = document.getElementById('editQuestionType').value;
+    const text = document.getElementById('editQuestionText').value.trim();
+    const hint = document.getElementById('editHintText').value.trim();
+
+    // ✅ 判斷出處
+    let sourceStr = left;
+    if (left === '其他') sourceStr = rightInp?.value.trim() || "";
+    else sourceStr = left + (rightSel?.value || "");
+
+    // ❗ 必填檢查
+    if (!left || !type || !text || !sourceStr) {
+      alert("請確認「出處」、「題型」、「題目」皆已填寫。");
+      return;
+    }
+
+    // ✅ 蒐集答案與選項
+    let A = '', B = '', C = '', D = '', E = '', ans = '';
+    if (type === '是非') {
+      ans = document.querySelector('input[name="editTfAns"]:checked')?.value || '';
+      if (!ans) {
+        alert('請選擇「是/否」答案');
+        return;
+      }
+    } else {
+      const letters = ['A', 'B', 'C', 'D', 'E'];
+      const picks = Array.from(document.querySelectorAll('input[name="editOptPick"]'));
+      const texts = letters.map(ch => document.getElementById('editOpt_' + ch).value.trim());
+      if (texts.some(t => !t)) {
+        alert('請將 A~E 選項全部填滿');
+        return;
+      }
+      const chosen = picks.filter(p => p.checked).map(p => p.value);
+      if (type === '單選' && chosen.length !== 1) {
+        alert('請勾選 1 個正解');
+        return;
+      }
+      if (type === '複選' && chosen.length === 0) {
+        alert('請勾選複選題的正解');
+        return;
+      }
+      ans = (type === '單選') ? chosen[0] : chosen.join('.');
+      [A, B, C, D, E] = texts;
+    }
+
+    // === 1️⃣ 顯示「確定提交？」Modal ===
+    const confirmEl = document.getElementById("confirmAddQuestionModal");
+    const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmEl);
+    confirmModal.show();
+
+    const okBtn = document.getElementById("confirmAddQuestionBtn");
+    okBtn.onclick = async function() {
+      confirmModal.hide();
+
+      // === 2️⃣ 若有 base64 圖片 → 上傳至 Drive
+      let refUrls = [];
+      if (referenceImageCache.length > 0) {
+        try {
+          const base64Data = referenceImageCache[0].base64;
+          const uploadedUrl = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .uploadQuestionImageBase64(base64Data, "題庫_提示圖", text);
+          });
+          refUrls = [uploadedUrl];
+        } catch (err) {
+          console.error("圖片上傳失敗：", err);
+          alert("圖片上傳失敗，請稍後再試。");
+        }
+      }
+
+      // === 3️⃣ 組合 JSON 答案格式
+      const answerJSON = JSON.stringify({
+        ans: ans,
+        hint: hint,
+        refs: refUrls
+      });
+
+      const updatedQ = {
+        序號: serial,
+        出處: sourceStr,
+        題型: type,
+        題目: text,
+        A, B, C, D, E,
+        答案: answerJSON,
+        啟用狀態: "✏️ 待審核",
+        命題者: currentUser["姓名"]
+      };
+
+      // === 4️⃣ 顯示「重新送審完成」動畫 Modal
+      const doneEl = document.getElementById("updateAddQuestionCompleteModal");
+      const doneModal = bootstrap.Modal.getOrCreateInstance(doneEl);
+      document.getElementById("updateAddQuestionMessage").innerText = "重新送審完成";
+      doneModal.show();
+
+      // === 5️⃣ 更新前端快取
+      if (cachedDisposalData?.questions?.length > 1) {
+        const headers = cachedDisposalData.questions[0];
+        const idxSerial = headers.indexOf("序號");
+        const idxStatus = headers.indexOf("啟用狀態");
+        const idxReview = headers.indexOf("審核資訊");
+        const rowIdx = cachedDisposalData.questions.findIndex(
+          (r, i) => i > 0 && String(r[idxSerial]) === String(serial)
+        );
+
+        if (rowIdx !== -1) {
+          const row = cachedDisposalData.questions[rowIdx];
+          ["出處","題型","題目","A","B","C","D","E","答案"].forEach(key => {
+            const idx = headers.indexOf(key);
+            if (idx >= 0 && updatedQ[key] !== undefined) row[idx] = updatedQ[key];
+          });
+
+          // 改為「待審核」
+          if (idxStatus >= 0) row[idxStatus] = "✏️ 待審核";
+
+          // 重建審核資訊（排除命題者）
+          if (idxReview >= 0) {
+            const author = currentUser["姓名"];
+            const bureauReviewers = accountData
+              .filter(acc => acc["單位名稱"] === "衛生局" && acc["姓名"] && acc["姓名"] !== author)
+              .map(acc => acc["姓名"]);
+            const reviewObj = { reviewers: {} };
+            bureauReviewers.forEach(n => {
+              reviewObj.reviewers[n] = { decision: "", reason: "", time: "" };
+            });
+            row[idxReview] = JSON.stringify(reviewObj);
+          }
+        }
+      }
+
+      // === 6️⃣ 即時刷新前端畫面
+      renderQuestionTable(true);
+      bootstrap.Modal.getInstance(document.getElementById("questionViewModal"))?.hide();
+
+      const unit = getCurrentUserUnit ? getCurrentUserUnit() : "";
+      const bureauModalEl = document.getElementById("msgModal_bureau");
+      const isBureauModalOpen = bureauModalEl?.classList.contains("show");
+      if (unit === "衛生局" && isBureauModalOpen) {
+        renderBureauQuestionBlocks();
+      }
+
+      // === 7️⃣ 清空圖片快取與預覽區
+      referenceImageCache = [];
+      const refContainer = document.getElementById("editReferenceContainer");
+      if (refContainer) refContainer.innerHTML = "";
+
+      // === 8️⃣ 同步後端更新（非同步）
+      google.script.run.withSuccessHandler(() => {
+        console.log("✅ 後端已更新重新送審的題目");
+      }).resubmitQuestion(updatedQ);
+    };
+  }
+
+
+//=====================命題者退件插入編輯題目=====================
+
+// ✅ 提交完成 modal 關閉時，同步關掉題目檢視與審核 modal
+document.getElementById("updateAddQuestionCompleteModal").addEventListener("hidden.bs.modal", () => {
+  const viewModal = bootstrap.Modal.getInstance(document.getElementById("questionViewModal"));
+  if (viewModal) viewModal.hide();
+});
+
+
+// ======== 🎬 控制「提交完成」動畫播放 ========
+document.addEventListener("DOMContentLoaded", () => {
+  const doneModalEl = document.getElementById("updateAddQuestionCompleteModal");
+  const player = doneModalEl?.querySelector("dotlottie-player"); // 直接抓 modal 裡的動畫元件
+
+  let lottieReady = false;
+
+  if (player) {
+    // 🟢 Lottie 載入完成時重置
+    player.addEventListener("ready", () => {
+      lottieReady = true;
+      player.stop();
+      player.seek(0);
+    });
+  }
+
+  // 🟣 Modal 開啟時播放動畫
+  doneModalEl.addEventListener("shown.bs.modal", () => {
+    if (!player) return;
+
+    const playOnce = () => {
+      player.stop();
+      player.seek(0);
+      setTimeout(() => player.play(), 100);
+    };
+
+    if (lottieReady) playOnce();
+    else player.addEventListener("ready", playOnce, { once: true });
+  });
+
+  // 🟤 Modal 關閉時重置
+  doneModalEl.addEventListener("hidden.bs.modal", () => {
+    if (player) {
+      player.stop();
+      player.seek(0);
+    }
+  });
+});
+
+
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1296 @@
+<script>
+//Part 1   確立 renderDisposalModule() 的結構。
+  function renderDisposalModule() {
+    // 篩選列
+    document.getElementById("dynamicFilterArea").innerHTML = `
+      <div class="d-flex align-items-center gap-4 flex-wrap">
+        <!-- 指標類別 -->
+        <div class="d-flex align-items-center gap-2">
+          <label for="chartSelect" class="fw-bold mb-0" style="min-width:80px; white-space:nowrap;">指標類別：</label>
+          <select id="chartSelect" class="form-select form-select-sm" style="min-width:300px;"></select>
+        </div>
+
+        <!-- 審核通過日區間 -->
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-bold mb-0" style="min-width:130px; white-space:nowrap;">審核通過日區間：</label>
+          <input type="date" id="endDateStart" class="form-control form-control-sm" style="max-width:160px;">
+          <span>～</span>
+          <input type="date" id="endDateEnd" class="form-control form-control-sm" style="max-width:160px;">
+        </div>
+
+        <!-- 返回最上層 -->
+        <button id="backTopBtn" 
+                class="btn btn-warning btn-sm" 
+                style="display:none;">
+          返回最上層
+        </button>
+
+
+        <!-- 匯出按鈕 -->
+        <div class="ms-auto">
+          <button id="downloadBtn" class="btn btn-light btn-sm" title="下載目前篩選資料" s style="border:1px solid #ddd;">
+            <span class="material-icons">download</span>
+          </button>
+        </div>
+      </div>
+    `;
+    document.getElementById("dynamicFilterArea").innerHTML += `
+      <div id="sortRow" class="align-items-center gap-3 flex-wrap mt-3" style="display:none;">
+        <div class="d-flex align-items-center gap-2">
+          <label for="sortBy" class="fw-bold mb-0" style="min-width:80px; white-space:nowrap;">排序依據：</label>
+          <select id="sortBy" class="form-select form-select-sm" style="min-width:160px;">
+            <option value="metric">依指標</option>
+            <option value="count">依個案數</option>
+          </select>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <label for="sortOrder" class="fw-bold mb-0" style="min-width:80px; white-space:nowrap;">排序方式：</label>
+          <select id="sortOrder" class="form-select form-select-sm" style="min-width:160px;">
+            <option value="desc">由大到小</option>
+            <option value="asc">由小到大</option>
+          </select>
+        </div>
+      </div>
+    `;
+
+    // 圖表區
+    document.getElementById("chartArea").innerHTML = `
+      <div id="chartWrapper" class="bg-light" style="min-height:300px;">
+        <canvas id="caseChart" style="width:100%; height:600px; display:block;"></canvas>
+      </div>
+    `;
+
+
+    // 表格區
+    document.getElementById("tableContent").innerHTML = `
+      <div class="mt-2" style="padding:16px; background:#fafafa; border-radius:12px;">
+        <div class="table-responsive" style="max-height:40vh; overflow:auto;">
+          <table id="resultTable" class="table table-sm table-hover align-middle mb-0">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+  // ✅ 確保 rawRows 有資料
+  if (!rawRows.length && cachedDisposalData) {
+    const aoa = cachedDisposalData.all || [];
+    if (aoa.length > 1) {
+      const header = aoa[0].map(h => String(h).trim());
+      rawRows = aoa.slice(1).map(r => {
+        const o = {}; header.forEach((c,i)=>o[c]=r[i]); return o;
+      }).filter(o => o["個案類型"] === "TB" && o["審核狀態"] === "✅ 通過");
+    }
+  }
+
+  document.getElementById("sortBy")?.addEventListener("change", render);
+  document.getElementById("sortOrder")?.addEventListener("change", render);
+
+  // 初始化銷案清單邏輯
+  initDisposalChartLogic();
+
+  // 🔹補這行，確保切回來時 chartSelect 會被重新塞
+  applyUnitRestriction();
+  resetToTop();  // 或直接 render()
+  }
+
+//Part 2 — chart_disposal.html（初始化邏輯）
+  let rawRows = [];     // 後端回來且已篩 TB + ✅通過
+  let viewRows = [];    // 目前畫面要用的資料（受下鑽條件影響）
+  let chart = null;
+  const stack = [];     // 下鑽狀態堆疊
+
+  function initDisposalChartLogic() {
+    // === Modal 打開時載入資料 ===
+    document.getElementById('chartModal').addEventListener('shown.bs.modal', () => {
+      if (!rawRows.length && cachedDisposalData) {
+        const aoa = cachedDisposalData.all || [];
+        if (aoa.length > 1) {
+          const header = aoa[0].map(h => String(h).trim());
+          rawRows = aoa.slice(1).map(r => {
+            const o = {}; header.forEach((c,i)=>o[c]=r[i]); return o;
+          }).filter(o => o["個案類型"] === "TB" && o["審核狀態"] === "✅ 通過");
+        }
+      }
+      applyUnitRestriction();  // ✅ 套用單位限制
+      resetToTop();
+    });
+
+    // === Modal 關閉時，銷毀 Chart 清乾淨 ===
+    document.getElementById('chartModal').addEventListener('hidden.bs.modal', () => {
+      try {
+        if (chart) {
+          chart.config.options.onClick = null; // 移除舊的點擊事件
+          chart.destroy();
+          chart = null;
+        }
+      } catch (e) {
+        console.warn('chart.destroy() 失敗：', e);
+      }
+    });
+
+    // ✅ 初始化日期輸入框
+    const startInput = document.getElementById("endDateStart");
+    const endInput   = document.getElementById("endDateEnd");
+
+    if (startInput && endInput) {
+      // 預設起日 = 2025/07/01
+      startInput.value = "2025-06-30";
+
+      // 預設迄日 = 今天
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      endInput.value = `${yyyy}-${mm}-${dd}`;
+
+      // 當使用者改日期 → 自動重新篩選
+      startInput.addEventListener("change", render);
+      endInput.addEventListener("change", render);
+    }
+
+    // ✅ 綁定 UI 事件
+    const chartSelect = document.getElementById('chartSelect');
+    if (chartSelect) chartSelect.addEventListener('change', resetToTop);
+
+    const backTopBtn = document.getElementById('backTopBtn');
+    if (backTopBtn) backTopBtn.addEventListener('click', resetToTop);
+
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (downloadBtn) downloadBtn.addEventListener('click', downloadExcel);
+
+    // ✅ Modal stacking（避免圖表放大）
+    document.addEventListener('show.bs.modal', function (event) {
+      if (event.target.id !== "chartModal") return; // 只處理 chartModal
+
+      const openModals = document.querySelectorAll('#chartModal.show').length;
+      const zIndex = 1050 + (10 * openModals);
+      event.target.style.zIndex = zIndex;
+
+      setTimeout(() => {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach((bd, idx) => {
+          bd.style.zIndex = 1040 + (10 * idx);
+        });
+      }, 0);
+    });
+  }
+
+  //取得用戶單位
+  function getUserUnit() {
+    return document.getElementById("userUnit")?.innerText.trim() || "";
+  }
+
+  // ✅ 如果不是衛生局，鎖定單位 & 預設指標
+  function applyUnitRestriction() {
+    const userUnit = document.getElementById("userUnit")?.innerText.trim();
+    const chartSelect = document.getElementById("chartSelect");
+    if (!userUnit || !chartSelect) return;
+
+    chartSelect.innerHTML = "";
+
+    if (userUnit === "衛生局") {
+      chartSelect.innerHTML = `
+        <option value="byUnit">申請銷案數_依管理單位</option>
+        <option value="byReason">申請銷案數_依銷案原因</option>
+        <option value="avgAvailableDays">案件處理平均可用天數</option>
+        <option value="avgDaysByReason">審核花費天數</option>                  
+        <option value="avgRejectByUnit">平均退件次數</option>
+        <option value="rejectDistByUnit">退件次數分布</option>
+        <option value="avgDefectByUnit">平均缺失項數</option>
+        <option value="avgDefectByMonth">每月平均缺失項數</option>
+        <option value="defectDistByUnit">缺失項數分布</option>
+        <option value="byLossCategory">缺失項類統計</option>
+        <option value="overdueByUnit">逾期銷案數</option>
+        <option value="directFailIrreversible">直接列不合格項件數</option>
+      `;
+    } else {
+      chartSelect.innerHTML = `
+        <option value="byReason">申請銷案數_依銷案原因</option>
+        <option value="avgAvailableDays">案件處理平均可用天數</option>                
+        <option value="avgRejectByUnit">平均退件次數</option>
+        <option value="rejectDistByUnit">退件次數分布</option>
+        <option value="avgDefectByUnit">平均缺失項數</option>
+        <option value="avgDefectByMonth">每月平均缺失項數</option>
+        <option value="defectDistByUnit">缺失項數分布</option>
+        <option value="byLossCategory">缺失項類統計</option>
+        <option value="overdueByUnit">逾期銷案數</option>
+        <option value="directFailIrreversible">直接列不合格項件數</option>
+      `;
+    }
+
+    chartSelect.value = (userUnit === "衛生局") ? "byUnit" : "byReason";
+  }
+
+//Part 3 — 聚合函數
+  // === 每月平均缺失項數 ===
+  function aggregateAvgDefectsByMonth(rows) {
+    const map = new Map();
+    rows.forEach(r => {
+      const d = toDateOnly(r["審核通過時間"]);   // ✅ 改用審核通過時間
+      if (!d) return;
+      const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const defects = toNonNegInt(r["不可逆缺失項數"]) + toNonNegInt(r["可逆缺失項數"]);
+      if (!map.has(ym)) map.set(ym, { sum: 0, count: 0 });
+      const acc = map.get(ym);
+      acc.sum += defects;
+      acc.count++;
+    });
+    const pairs = [...map.entries()].map(([ym,{sum,count}]) => [ym, count ? sum/count : 0]);
+    pairs.sort((a,b)=>a[0].localeCompare(b[0]));
+    return { labels: pairs.map(p=>p[0]), values: pairs.map(p=>p[1]) };
+  }
+
+  // 平均案件處理可用天數
+  function aggregateAvgAvailableDays(rows, dim) {
+    const keyOf = (r) => (
+      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)"
+    );
+
+    const map = new Map();
+    rows.forEach(r => {
+      const k = keyOf(r);
+      const days = parseFloat(r["案件處理可用天數"]);
+      if (!isNaN(days)) {
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(days);
+      }
+    });
+
+    const pairs = [...map.entries()].map(([k, arr]) => {
+      const avg = arr.reduce((a,b)=>a+b,0) / arr.length;
+      return [k, avg];
+    });
+
+    pairs.sort((a,b) => b[1] - a[1]); // 平均值遞減
+    return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+  }
+
+  // 平均審核花費天數
+  function aggregateAvgDays(rows, dim) {
+    const keyOf = (r) => (
+      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)"
+    );
+
+    const map = new Map();
+    rows.forEach(r => {
+      const k = keyOf(r);
+      const days = parseFloat(r["審核花費天數"]);
+      if (!isNaN(days)) {
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(days);
+      }
+    });
+
+    const pairs = [...map.entries()].map(([k, arr]) => {
+      const avg = arr.reduce((a,b)=>a+b,0) / arr.length;
+      return [k, avg];
+    });
+
+    pairs.sort((a,b) => b[1] - a[1]);
+    return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+  }
+
+  // 平均退件次數
+  function aggregateAvgRejects(rows, dim) {
+    const keyOf = (r) => (
+      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)"
+    );
+
+    // 用 {sum, count} 統計，空值算 0 一樣要算進分母
+    const map = new Map();
+    rows.forEach(r => {
+      const k = keyOf(r);
+      const rej = Math.max(0,
+        toNonNegInt(r["退件次數"]) - toNonNegInt(r["局抽回次數"])
+      );
+      if (!map.has(k)) map.set(k, { sum: 0, count: 0 });
+      const acc = map.get(k);
+      acc.sum += rej;
+      acc.count += 1;
+    });
+
+    const pairs = [...map.entries()].map(([k, {sum, count}]) => {
+      const avg = count ? (sum / count) : 0;
+      return [k, avg];
+    });
+
+    pairs.sort((a,b) => b[1] - a[1]);
+    return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+  }
+
+  // 退件次數分布
+  function getActualRejectCount(r) {
+    return Math.max(
+      0,
+      toNonNegInt(r["退件次數"]) - toNonNegInt(r["局抽回次數"])
+    );
+  }
+  function aggregateByReject(rows) {
+    const map = new Map();
+    rows.forEach(r => {
+      const n = Math.max(0,
+        toNonNegInt(r["退件次數"]) - toNonNegInt(r["局抽回次數"])
+      ); // ✅ 扣掉局抽回次數
+      map.set(n, (map.get(n) || 0) + 1);
+    });
+    const pairs = [...map.entries()].sort((a,b)=> a[0]-b[0]); // 遞增排序
+    return { labels: pairs.map(p => String(p[0])), values: pairs.map(p => p[1]) };
+  }
+
+  // 平均缺失項數
+  function aggregateAvgDefects(rows, dim) {
+    const keyOf = (r) => (
+      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)"
+    );
+
+    const map = new Map();
+    rows.forEach(r => {
+      const k = keyOf(r);
+      const irreversible = toNonNegInt(r["不可逆缺失項數"]);
+      const reversible   = toNonNegInt(r["可逆缺失項數"]);
+      const defects = irreversible + reversible;
+
+      if (!map.has(k)) map.set(k, { sum: 0, count: 0 });
+      const acc = map.get(k);
+      acc.sum   += defects;
+      acc.count += 1;
+    });
+
+    const pairs = [...map.entries()].map(([k, {sum, count}]) => [k, count ? (sum / count) : 0]);
+    pairs.sort((a,b) => b[1] - a[1]);
+    return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+  }
+
+  // 缺失數分布
+  function getDefectCount(row) {
+    return toNonNegInt(row["不可逆缺失項數"]) + toNonNegInt(row["可逆缺失項數"]);
+  }
+  function aggregateByDefect(rows) {
+    const map = new Map();
+    rows.forEach(r => {
+      const n = getDefectCount(r);
+      map.set(n, (map.get(n) || 0) + 1);
+    });
+    const pairs = [...map.entries()].sort((a,b)=> a[0] - b[0]);
+    return { labels: pairs.map(p => String(p[0])), values: pairs.map(p => p[1]) };
+  }
+
+  // 未依指示修正
+  function aggregateDirectFailIrreversible(rows, dim) {
+    const keyOf = (r) =>
+      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)";
+
+    const map = new Map();
+    rows.forEach(r => {
+      const count = toNonNegInt(r["【直接列不合格項(不可逆)】筆數"]);
+      if (count > 0) {
+        const k = keyOf(r);
+        map.set(k, (map.get(k) || 0) + 1);
+      }
+    });
+
+    const pairs = [...map.entries()].sort((a,b) => b[1] - a[1]);
+    return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+  }
+
+  // 一般 count 聚合
+  function aggregateCount(rows, dim) {
+    const keyOf = (r) => (
+      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)"
+    );
+    const map = new Map();
+    rows.forEach(r => {
+      const k = keyOf(r);
+      map.set(k, (map.get(k) || 0) + 1);
+    });
+    const pairs = [...map.entries()].sort((a,b)=>b[1]-a[1]);
+    return { labels: pairs.map(p=>p[0]), values: pairs.map(p=>p[1]) };
+  }
+
+//Part 4 — chart_disposal.html（主渲染） 
+  //統一入口
+  function aggregateForCurrent(sel, rows, dim) {
+    if (sel === 'avgDefectByMonth') {
+      return (dim === 'month')
+        ? aggregateAvgDefectsByMonth(rows)
+        : aggregateAvgDefects(rows, dim);   // 下鑽沿用既有平均缺失項數
+    }   
+
+    if (sel === "byLossCategory") {
+      if (dim === "byLossCategory") {
+        const map = new Map();
+        rows.forEach(r => {
+          Object.keys(r).forEach(k => {
+            if (/^【.+】筆數$/.test(k)) {
+              const val = toNonNegInt(r[k]);
+              if (val > 0) {
+                map.set(k, (map.get(k) || 0) + val);
+              }
+            }
+          });
+        });
+        const pairs = [...map.entries()].sort((a, b) => b[1] - a[1]);
+        return {
+          labels: pairs.map(p => p[0].replace(/^【(.+?)】筆數$/, '$1')), // 簡短顯示
+          rawLabels: pairs.map(p => p[0]), // 原始欄位名
+          values: pairs.map(p => p[1])
+        };
+      } else if (dim === "unit") {
+        const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
+        if (!lossCol) return { labels: [], values: [] };
+
+        const map = new Map();
+        rows.forEach(r => {
+          const val = toNonNegInt(r[lossCol]);
+          if (val > 0) {
+            const k = r["管理單位"] || "(未填)";
+            map.set(k, (map.get(k) || 0) + val);
+          }
+        });
+        const pairs = [...map.entries()].sort((a, b) => b[1] - a[1]);
+        return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+      } else if (dim === "applicant") {
+        const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
+        if (!lossCol) return { labels: [], values: [] };
+
+        const map = new Map();
+        rows.forEach(r => {
+          const val = toNonNegInt(r[lossCol]);
+          if (val > 0) {
+            const k = r["申請人"] || "(未填)";
+            map.set(k, (map.get(k) || 0) + val);
+          }
+        });
+        const pairs = [...map.entries()].sort((a, b) => b[1] - a[1]);
+        return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
+      }
+    }
+
+    if (sel === 'avgDaysByReason') {
+      return aggregateAvgDays(rows, dim);
+    } else if (sel === 'avgRejectByUnit') {
+      return aggregateAvgRejects(rows, dim);
+    } else if (sel === 'avgDefectByUnit') {
+      return aggregateAvgDefects(rows, dim);
+    } else if (sel === 'rejectDistByUnit') {
+      return (dim === 'reject') ? aggregateByReject(rows) : aggregateCount(rows, dim);
+    } else if (sel === 'defectDistByUnit') {
+      return (dim === 'defect') ? aggregateByDefect(rows) : aggregateCount(rows, dim);
+    } else if (sel === 'avgAvailableDays') {
+      return aggregateAvgAvailableDays(rows, dim);    
+    } else if (sel === 'directFailIrreversible') {
+      return aggregateDirectFailIrreversible(rows, dim);
+    } else {
+      return aggregateCount(rows, dim);
+    }
+  }
+
+  // ===== 重設到頂層 =====
+  function resetToTop() {
+    // 只在銷案清單時才執行
+    const ds = document.getElementById('dataSourceSelect');
+    if (!ds || ds.value !== 'disposal') return;
+
+    stack.length = 0;
+
+    const el = document.getElementById('chartSelect');
+    if (!el) return;   // 沒有 chartSelect 就直接跳出
+
+    const sel = el.value;
+    if (!sel) return;
+
+    const userUnit = document.getElementById("userUnit")?.innerText.trim();
+    const isBureau = (userUnit === "衛生局");
+
+    let topDim;
+    if (
+      sel === 'byUnit' ||
+      sel === 'overdueByUnit' ||
+      sel === 'avgRejectByUnit' ||
+      sel === 'avgDefectByUnit' ||
+      sel === 'directFailIrreversible'
+    ) {
+      topDim = isBureau ? 'unit' : 'applicant';
+    } else if (sel === 'avgAvailableDays') {
+      topDim = 'reason';
+    } else if (sel === 'avgDefectByMonth') {
+      topDim = 'month';
+    } else if (sel === 'rejectDistByUnit') {
+      topDim = 'reject';
+    } else if (sel === 'defectDistByUnit') {
+      topDim = 'defect';
+    } else if (sel === 'byLossCategory') {
+      topDim = 'byLossCategory';
+    } else {
+      topDim = 'reason';
+    }
+
+    stack.push({ dim: topDim, filter: null });
+    render();
+  }
+
+  // 事件也要加判斷
+  document.getElementById('chartModal').addEventListener('shown.bs.modal', () => {
+    const ds = document.getElementById('dataSourceSelect');
+    if (ds && ds.value === 'disposal') {
+      resetToTop();
+    }
+  });
+
+
+  // ===== 目前層設定 =====
+  function currentLayer() { 
+    return stack.length ? stack[stack.length - 1] : { dim: 'unit', filter: null }; 
+  }
+
+  // ===== 構建目前層用的 rows（套用所有 filter） =====
+  function computeViewRows() {
+    const userUnit = document.getElementById("userUnit")?.innerText.trim();
+    let rows = [...rawRows];
+    if (userUnit && userUnit !== "衛生局") {
+      rows = rows.filter(r => r["管理單位"] === userUnit);
+    }
+
+    stack.forEach(layer => {
+      if (!(layer.filter && layer.filter.value != null)) return;
+      if (layer.dim === 'byLossCategory') return;
+
+      const dim = layer.dim;
+      const colValOf = (r) =>
+        dim === 'unit'      ? (r["管理單位"] || "(未填)") :
+        dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
+        dim === 'applicant' ? (r["申請人"]   || "(未填)") :
+        dim === 'reject'    ? String(getActualRejectCount(r)) :
+        dim === 'defect'    ? String(getDefectCount(r)) :
+        dim === 'month'     ? (() => {
+          const d = toDateOnly(r["審核通過時間"]);
+          if (!d) return "(未填)";
+          return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        })() :
+        "(未定義)";
+
+      rows = rows.filter(r => colValOf(r) === String(layer.filter.value));
+    });
+
+    const start = document.getElementById('endDateStart').value;
+    const end = document.getElementById('endDateEnd').value;
+    if (start || end) {
+      const sDate = start ? new Date(start) : null;
+      const eDate = end ? new Date(end) : null;
+      rows = rows.filter(r => {
+        const d = toDateOnly(r["審核通過時間"]);
+        if (!d) return false;
+        if (sDate && d < sDate) return false;
+        if (eDate && d > eDate) return false;
+        return true;
+      });
+    }
+
+    const sel = document.getElementById('chartSelect').value;
+    if (sel === 'overdueByUnit') {
+      rows = rows.filter(r => {
+        const approve = toDateOnly(r["審核通過時間"]);
+        const deadline = toDateOnly(r["銷案期限"]);
+        return (approve && deadline && approve.getTime() > deadline.getTime());
+      });
+    }
+    if (sel === 'directFailIrreversible') {
+      rows = rows.filter(r => toNonNegInt(r["【直接列不合格項(不可逆)】筆數"]) > 0);
+    }
+    return rows;
+  }
+
+  // ===== 主渲染 =====
+  function render() {
+    viewRows = computeViewRows();
+    const sel = document.getElementById('chartSelect').value;
+    const dim = currentLayer().dim;
+    const agg = aggregateForCurrent(sel, viewRows, dim);
+
+    // ===== 算出每個類別的個案數 =====
+    let counts;
+    if (sel === "byLossCategory") {
+      const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
+      if (!lossCol) {
+        counts = agg.labels.map(lab =>
+          viewRows.filter(r => toNonNegInt(r[`【${lab}】筆數`]) > 0).length
+        );
+      } else {
+        counts = agg.labels.map(lab =>
+          viewRows.filter(r => {
+            const hasLoss = toNonNegInt(r[lossCol]) > 0;
+            const groupVal =
+              dim === 'unit' ? (r["管理單位"] || "(未填)") :
+              dim === 'applicant' ? (r["申請人"] || "(未填)") : "(未定義)";
+            return hasLoss && groupVal === lab;
+          }).length
+        );
+      }
+    } else {
+      counts = agg.labels.map(lab => viewRows.filter(r => {
+        const val =
+          dim === 'unit' ? (r["管理單位"] || "(未填)") :
+          dim === 'reason' ? (r["銷案原因"] || "(未填)") :
+          dim === 'applicant' ? (r["申請人"] || "(未填)") :
+          dim === 'month' ? (() => {
+            const d = toDateOnly(r["審核通過時間"]);
+            return d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` : "(未填)";
+          })() : "(未定義)";
+        return val === lab;
+      }).length);
+    }
+
+    // ===== Y 軸標籤 =====
+    const yLabel =
+      (sel === 'avgDaysByReason') ? '平均花費天數' :
+      (sel === 'avgAvailableDays') ? '平均可用天數' :
+      (sel === 'avgRejectByUnit') ? '平均退件次數' :
+      (sel === 'avgDefectByUnit') ? '平均缺失項數' :
+      (sel === 'avgDefectByMonth') ? '平均缺失項數' :
+      (sel === 'byLossCategory')  ? '合計筆數' : '件數';
+
+    const title = breadcrumbText();
+    const ctx = document.getElementById('caseChart').getContext('2d');
+
+    if (chart) {
+      chart.config.options.onClick = null;
+      chart.destroy();
+    }
+
+    // ===== 判斷哪些是組合圖指標 =====
+    const comboMetrics = [
+      'avgAvailableDays', 'avgDaysByReason',
+      'avgRejectByUnit', 'avgDefectByUnit',
+      'avgDefectByMonth', 'byLossCategory'
+    ];
+    const isCombo = comboMetrics.includes(sel);
+
+    // ===== 顯示或隱藏排序列 =====
+    const sortRow = document.getElementById("sortRow");
+    if (sortRow) {
+      if (isCombo) {
+        // ✅ 特殊處理 avgDefectByMonth 在最上層
+        if (sel === "avgDefectByMonth" && dim === "month" && stack.length === 1) {
+          sortRow.classList.add("d-none");
+          sortRow.style.display = "none";
+        } else {
+          sortRow.classList.remove("d-none");
+          sortRow.style.display = "flex";
+        }
+      } else {
+        sortRow.classList.add("d-none");
+        sortRow.style.display = "none";
+      }
+    }
+
+    // ===== 排序處理（僅組合圖適用） =====
+    let sortedLabels = agg.labels;
+    let sortedValues = agg.values;
+    let sortedCounts = counts;
+
+    if (isCombo) {
+      if (!(sel === "avgDefectByMonth" && dim === "month" && stack.length === 1)) {
+        const sortBy = document.getElementById("sortBy")?.value || "metric";
+        const sortOrder = document.getElementById("sortOrder")?.value || "desc";
+
+        let combined = agg.labels.map((lab, i) => ({
+          lab,
+          val: agg.values[i],
+          count: counts[i]
+        }));
+
+        combined.sort((a, b) => {
+          const key = sortBy === "metric" ? "val" : "count";
+          return sortOrder === "asc" ? (a[key] - b[key]) : (b[key] - a[key]);
+        });
+
+        sortedLabels = combined.map(o => o.lab);
+        sortedValues = combined.map(o => o.val);
+        sortedCounts = combined.map(o => o.count);
+      }
+    }
+
+    // ===== 建立圖表 =====
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sortedLabels,
+        datasets: isCombo ? [
+          {
+            label: yLabel,
+            data: sortedValues,
+            type: 'line',
+            yAxisID: 'y1',
+            borderColor: 'rgba(75,192,192,1)',
+            backgroundColor: 'rgba(75,192,192,0.1)',
+            pointRadius: 6,
+            pointHoverRadius: 8
+          },
+          {
+            label: '個案數',
+            data: sortedCounts,
+            yAxisID: 'y2',
+            backgroundColor: 'rgba(54,162,235,0.5)'
+          }
+        ] : [
+          {
+            label: yLabel,
+            data: agg.values,
+            backgroundColor: 'rgba(54,162,235,0.5)',
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: 0 },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ctx.dataset.label + ": " + ctx.formattedValue
+            }
+          },
+          title: { 
+            display: true, 
+            text: title, 
+            align: 'center', 
+            font: { size: 20, weight: 'bold' } 
+          },
+          legend: { display: isCombo }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text:
+                dim === 'unit'       ? '管理單位' :
+                dim === 'reason'     ? '銷案原因' :
+                dim === 'applicant'  ? '申請人'   :
+                dim === 'reject'     ? '退件次數' :
+                dim === 'defect'     ? '缺失項數' :
+                dim === 'byLossCategory' ? '缺失項別' :
+                dim === 'month'      ? '年-月' : '',
+              font: { size: 14 },
+              padding: { top: 20 }
+            },
+            grid: { display: false, drawBorder: false }
+          },
+          y1: {
+            type: 'linear',
+            position: 'left',
+            beginAtZero: true,
+            title: { display: true, text: yLabel }
+          },
+          y2: isCombo ? {
+            type: 'linear',
+            position: 'right',
+            beginAtZero: true,
+            title: { display: true, text: '個案數' },
+            grid: { drawOnChartArea: false },
+            // ✅ 只有缺失項類統計時，與 y1 共用範圍
+            min: sel === 'byLossCategory' ? (ctx) => ctx.chart.scales.y1.min : undefined,
+            max: sel === 'byLossCategory' ? (ctx) => ctx.chart.scales.y1.max : undefined
+          } : { display: false }
+        },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const idx = elements[0].index;
+          const label = agg.rawLabels ? agg.rawLabels[idx] : sortedLabels[idx];
+          const dimNow = currentLayer().dim;
+          if (dimNow !== 'applicant') handleBarClick(label);
+        }
+      }
+    });
+
+    // ===== 表格與其他資訊 =====
+    renderTable(viewRows, dim);
+    document.getElementById('backTopBtn').style.display =
+      (stack.length > 1) ? 'inline-block' : 'none';
+    document.getElementById("descArea").innerText = descriptionText_disposal();
+
+    let infoText = "";
+    if (sel === "byLossCategory") {
+      const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
+      if (lossCol) {
+        const total = viewRows.reduce((acc, r) => acc + toNonNegInt(r[lossCol]), 0);
+        const caseCount = viewRows.filter(r => toNonNegInt(r[lossCol]) > 0).length;
+        infoText = `共 ${total} 筆（${caseCount} 個案）`;
+      } else {
+        let total = 0;
+        let caseCount = 0;
+        viewRows.forEach(r => {
+          let hasLoss = false;
+          Object.keys(r).forEach(k => {
+            if (/^【.+】筆數$/.test(k)) {
+              const val = toNonNegInt(r[k]);
+              total += val;
+              if (val > 0) hasLoss = true;
+            }
+          });
+          if (hasLoss) caseCount++;
+        });
+        infoText = `共 ${total} 筆（${caseCount} 個案）`;
+      }
+    } else {
+      infoText = `共 ${viewRows.length} 筆`;
+    }
+    document.getElementById('tableInfo').textContent = infoText;
+  }
+
+
+
+  // ===== CSS for table head =====
+  const style = document.createElement('style');
+  style.innerHTML = `
+    #resultTable thead th {
+      background-color: #cfe2ff;
+      color: #003366;
+      font-weight: 600;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ===== renderTable (表格渲染) =====
+  let tableSort = { col: null, asc: true };
+
+  function renderTable(rows) {
+    const thead = document.querySelector('#resultTable thead');
+    const tbody = document.querySelector('#resultTable tbody');
+
+    const sel = document.getElementById('chartSelect').value;
+    let schema = TABLE_SCHEMAS[sel];
+    if (!schema) return;
+
+    let cols = [...schema.cols];
+    let dataRows = [...rows];
+
+    if (sel === "byLossCategory") {
+      const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
+      if (lossCol) {
+        cols.push(lossCol);
+        dataRows = dataRows.filter(r => toNonNegInt(r[lossCol]) > 0);
+        dataRows.forEach(r => { if (!(lossCol in r)) r[lossCol] = 0; });
+      } else {
+        dataRows = dataRows.filter(r => {
+          return Object.keys(r).some(k => /^【.+】筆數$/.test(k) && toNonNegInt(r[k]) > 0);
+        });
+      }
+    }
+
+    thead.innerHTML = `<tr>${cols.map(c =>
+      `<th style="cursor:pointer; text-align:center;" onclick="sortTableBy('${c}')">${c}</th>`
+    ).join('')}</tr>`;
+
+    let sortedRows = [...dataRows];
+    if (tableSort.col) {
+      const colName = tableSort.col;
+      const isDateCol = /時間|期限|結束治療日/.test(colName);
+      const isRejectCol = colName === "退件次數";
+      const isDefectCol = (colName === "不可逆缺失項數" || colName === "可逆缺失項數");
+
+      sortedRows.sort((a,b) => {
+        let va = a[colName] ?? "";
+        let vb = b[colName] ?? "";
+
+        if (isDateCol) {
+          const da = toDateOnly(va);
+          const db = toDateOnly(vb);
+          if (da && db) return tableSort.asc ? (da - db) : (db - da);
+        }
+        if (isRejectCol || isDefectCol) {
+          const na = toNonNegInt(va);
+          const nb = toNonNegInt(vb);
+          return tableSort.asc ? (na - nb) : (nb - na);
+        }
+        if (!isNaN(parseFloat(va)) && !isNaN(parseFloat(vb))) {
+          return tableSort.asc ? (va - vb) : (vb - va);
+        }
+        return tableSort.asc
+          ? String(va).localeCompare(String(vb))
+          : String(vb).localeCompare(String(va));
+      });
+    }
+
+    tbody.innerHTML = sortedRows.map(r =>
+      `<tr>${cols.map(c => {
+          let val = r[c] ?? "";
+          if (c === "退件次數" || c === "不可逆缺失項數" || c === "可逆缺失項數") {
+            val = toNonNegInt(val);
+          } else if (/時間|期限|結束治療日/.test(c)) {
+            const d = toDateOnly(val);
+            if (d) {
+              val = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+            }
+          }
+          if (c === "總編號" && val) {
+            const applyTimeVal = r["申請時間"]
+              ? String(r["申請時間"]).replace(/-/g, "/")
+              : "";
+
+            const caseKey = `${val}__${applyTimeVal}`;
+
+            return `<td style="cursor:pointer; color:#007BFF; text-decoration:underline;"
+                    onclick="openReviewForm('${caseKey}')">${escapeHtml(val)}</td>`;
+          }
+          return `<td>${escapeHtml(val)}</td>`;
+      }).join('')}</tr>`
+    ).join('');
+  }
+
+  // ===== 排序觸發 =====
+  window.sortTableBy = function(col) {
+    if (tableSort.col === col) {
+      tableSort.asc = !tableSort.asc;
+    } else {
+      tableSort.col = col;
+      tableSort.asc = true;
+    }
+    renderTable(viewRows);
+  };
+
+  // 麵包屑
+  function getSelectText() {
+    const sel = document.getElementById('chartSelect');
+    if (!sel || sel.selectedIndex < 0 || !sel.options[sel.selectedIndex]) return "";
+    return sel.options[sel.selectedIndex].textContent.trim();
+  }
+
+  function breadcrumbText() {
+    const base = getSelectText();
+    const dimNameMap = {
+      byLossCategory: "缺失項",
+      unit: "管理單位",
+      reason: "銷案原因",
+      applicant: "申請人",
+      reject: "退件次數",
+      month: "審核年月",
+      defect: "缺失項數" 
+    };
+
+    const crumbs = stack
+      .filter(l => l.filter)
+      .map(l => {
+        let val = String(l.filter.value);
+        if (l.dim === 'byLossCategory') {
+          val = val.replace(/】筆數$/, '】'); // 裁掉多餘文字
+        }
+        return `${dimNameMap[l.dim]}:${val}`;
+      });
+
+    return crumbs.length ? base + " > " + crumbs.join(" > ") : base;
+  }
+
+  //顯示說明欄
+  function descriptionText_disposal() {
+    const select = document.getElementById('chartSelect');
+    const val = select ? select.value : 'byUnit';
+
+    const baseIntro = "本圖表依照「個案類型」為『TB』，且「審核狀態」為『✅ 通過』的個案進行篩選。\n 缺失項的統計均為 不可逆缺失 + 可逆缺失 \n\n";
+
+    const descMap = {
+      byUnit: "說明：統計各管理單位的申請件數",
+      byReason: "說明：統計各銷案原因的申請件數",
+      avgAvailableDays: "說明：每案依據銷案原因（ 銷案期限 - 申請時間 ）的合計後取平均值",
+      avgDaysByReason: "說明：依據各銷案類型每案（ 審核通過時間 - 申請時間 ）的合計後取平均天數",
+      avgRejectByUnit: "說明：（每案退件次數合計 - 局抽回次數） ÷ 個案數",
+      rejectDistByUnit: "說明：依退件次數（0,1,2,…，扣除局抽回次數）分組，統計人數",
+      avgDefectByUnit: "說明：每案缺失項數合計後取平均值",
+      avgDefectByMonth: "以「審核通過時間」的月份為單位，計算當月個案的平均缺失項數",
+      defectDistByUnit: "說明：依缺失項總數 (0,1,2,…) 分組，統計人數",
+      byLossCategory: "說明：統計各缺失項的筆數合計",
+      overdueByUnit: "說明：審核通過時間 > 銷案期限 的件數",
+      directFailIrreversible: "說明：至少有一項『【直接列不合格項(不可逆)】筆數』 > 0 的件數"
+    };
+
+    return baseIntro + (descMap[val] || "");
+  }
+
+  //下鑽點擊
+  function handleBarClick(label) {
+    const curDim = currentLayer().dim;
+    if (curDim === 'applicant') return;
+
+    currentLayer().filter = { value: label };
+    let nextDim = null;
+
+    if (curDim === 'month') nextDim = 'unit';
+    else if (curDim === 'unit') nextDim = 'applicant';
+    else if (curDim === 'reject') nextDim = 'unit';
+    else if (curDim === 'defect') nextDim = 'unit';
+    else if (curDim === 'reason') nextDim = 'unit';
+    else if (curDim === 'byLossCategory') nextDim = 'unit';
+
+    if (nextDim) {
+      stack.push({ dim: nextDim, filter: null });
+
+      const userUnit = document.getElementById("userUnit")?.innerText.trim();
+      const isBureau = (userUnit === "衛生局");
+
+      if (!isBureau && nextDim === 'unit') {
+        stack.push({ dim: 'applicant', filter: null });
+      }
+
+      render();
+    }
+  }
+
+  //表格顯示
+  const TABLE_SCHEMAS = {
+    byUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因"],
+      name: "申請銷案數_依管理單位"
+    },
+    byReason: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因"],
+      name: "申請銷案數_依銷案原因"
+    },
+    avgAvailableDays: {
+      cols: ["管理單位","總編號","個案姓名","申請人","銷案原因","結束治療日", "申請時間", "銷案期限","案件處理可用天數"],
+      name: "案件處理平均可用天數"
+    },
+    avgDaysByReason: {
+      cols: ["銷案原因","管理單位","總編號","個案姓名","申請人","結束治療日","審核花費天數"],
+      name: "審核花費天數"
+    },
+    overdueByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日", "申請時間","銷案原因","審核通過時間","銷案期限"],
+      name: "逾期銷案數"
+    },
+    avgRejectByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數"],
+      name: "平均退件次數"
+    },
+    rejectDistByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數"],
+      name: "退件次數分布"
+    },
+    avgDefectByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日", "銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "平均缺失項數"
+    },
+    defectDistByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日", "銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "缺失項數分布"
+    },
+    avgDefectByMonth: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","審核通過時間","銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "每月平均缺失項數"
+    },
+    directFailIrreversible: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數","【直接列不合格項(不可逆)】筆數"],
+      name: "直接列不合格項件數"
+    },
+    byLossCategory: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日", "銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "缺失項類統計"
+    }
+  };
+
+
+//Part 5 — 匯出 + 工具
+  // 匯出樣板
+  const EXPORT_SCHEMAS = {
+    byUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因"],
+      name: "申請銷案數_依管理單位"
+    },
+    byReason: {
+      cols: ["銷案原因","管理單位","總編號","個案姓名","申請人","結束治療日"],
+      name: "申請銷案數_依銷案原因"
+    },
+    avgAvailableDays: {
+      cols: ["管理單位","總編號","個案姓名","申請人","銷案原因","結束治療日", "申請時間", "銷案期限","案件處理可用天數"],
+      name: "案件處理平均可用天數"
+    },
+    avgDaysByReason: {
+      cols: ["銷案原因","管理單位","總編號","個案姓名","申請人","結束治療日","審核花費天數"],
+      name: "審核花費天數"
+    },
+    overdueByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","申請時間","銷案原因","審核通過時間","銷案期限"],
+      name: "逾期銷案數"
+    },
+    avgRejectByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","退件次數"],
+      name: "平均退件次數"
+    },
+    rejectDistByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","退件次數"],
+      name: "退件次數分布"
+    },
+    avgDefectByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "平均缺失項數"
+    },
+    defectDistByUnit: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "缺失項數分布"
+    },
+    avgDefectByMonth: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","審核通過時間","銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "每月平均缺失項數"
+    },
+    directFailIrreversible: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數","【直接列不合格項(不可逆)】筆數"],
+      name: "直接列不合格項件數"
+    },
+    byLossCategory: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "缺失項類統計"
+    }
+  };
+
+  // 下載 Excel
+  function downloadExcel() {
+    const sel = document.getElementById('chartSelect').value;
+    const schema = EXPORT_SCHEMAS[sel];
+    if (!schema) return;
+
+    const cols = schema.cols;
+    const rowsForExport = [...viewRows];
+
+    // === 判斷圖表標籤 ===
+    const dim = currentLayer().dim;
+    const agg = aggregateForCurrent(sel, viewRows, dim);
+
+    const xLabel =
+      dim === 'unit'       ? '管理單位' :
+      dim === 'reason'     ? '銷案原因' :
+      dim === 'applicant'  ? '申請人'   :
+      dim === 'reject'     ? '退件次數' :
+      dim === 'defect'     ? '缺失項數' :
+      dim === 'byLossCategory' ? '缺失項別' :
+      dim === 'month'      ? '年-月' : '類別';
+
+    const yLabel =
+      (sel === 'avgDaysByReason')   ? '平均花費天數' :
+      (sel === 'avgAvailableDays')  ? '平均可用天數' :
+      (sel === 'avgRejectByUnit')   ? '平均退件次數' :
+      (sel === 'avgDefectByUnit')   ? '平均缺失項數' :
+      (sel === 'avgDefectByMonth')  ? '平均缺失項數' :
+      (sel === 'byLossCategory')    ? '合計筆數' : '件數';
+
+    const comboMetrics = [
+      'avgAvailableDays', 'avgDaysByReason',
+      'avgRejectByUnit', 'avgDefectByUnit',
+      'avgDefectByMonth', 'byLossCategory'
+    ];
+    const isCombo = comboMetrics.includes(sel);
+
+    // === 個案數（右軸） ===
+    let counts = [];
+    if (isCombo) {
+      if (sel === 'byLossCategory' && dim === 'byLossCategory') {
+        // 特殊處理：每類缺失涉及多少個案
+        const caseCountMap = new Map();
+        rowsForExport.forEach(r => {
+          agg.rawLabels.forEach(lossCol => {
+            const val = toNonNegInt(r[lossCol]);
+            if (val > 0) {
+              caseCountMap.set(lossCol, (caseCountMap.get(lossCol) || 0) + 1);
+            }
+          });
+        });
+        counts = agg.rawLabels.map(col => caseCountMap.get(col) || 0);
+      } else {
+        counts = agg.labels.map(lab =>
+          viewRows.filter(r => {
+            const val =
+              dim === 'unit' ? (r["管理單位"] || "(未填)") :
+              dim === 'reason' ? (r["銷案原因"] || "(未填)") :
+              dim === 'applicant' ? (r["申請人"] || "(未填)") :
+              dim === 'month' ? (() => {
+                const d = toDateOnly(r["審核通過時間"]);
+                return d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` : "(未填)";
+              })() : "(未定義)";
+            return val === lab;
+          }).length
+        );
+      }
+    }
+
+    // === 圖表資料 ===
+    const chartAoa = isCombo
+      ? [[xLabel, yLabel, "個案數"]]
+      : [[xLabel, yLabel]];
+
+    agg.labels.forEach((lab, i) => {
+      if (isCombo) {
+        chartAoa.push([lab, agg.values[i], counts[i]]);
+      } else {
+        chartAoa.push([lab, agg.values[i]]);
+      }
+    });
+    const wsChart = XLSX.utils.aoa_to_sheet(chartAoa);
+
+    // === 個案明細 ===
+    const aoa = [cols];
+    rowsForExport.forEach(r => {
+      aoa.push(cols.map(c => r[c] ?? ""));
+    });
+    const wsDetail = XLSX.utils.aoa_to_sheet(aoa);
+
+    // === 建立 workbook ===
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsChart, "圖表資料");
+    XLSX.utils.book_append_sheet(wb, wsDetail, schema.name);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `${schema.name}_${dateStr}.xlsx`);
+  }
+
+
+
+
+  // 小工具
+  function toDateOnly(d) {
+    const date = new Date(d);
+    if (isNaN(date)) return null;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  function toNonNegInt(v) {
+    if (v == null) return 0;
+    if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v)) return 0;
+    const s = String(v).trim();
+    if (s === '' || s === '-' || s === '—' || s === '–') return 0;
+    const m = s.match(/-?\d+(\.\d+)?/);
+    if (!m) return 0;
+    const n = Number(m[0]);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
+
+  function toCSV(rows, cols) {
+    const head = cols.join(',');
+    const body = rows.map(r => cols.map(c => csvCell(r[c])).join(',')).join('\n');
+    return head + '\n' + body;
+  }
+
+  function csvCell(v) {
+    if (v == null) v = "";
+    const s = String(v).replace(/"/g,'""');
+    return /[",\n]/.test(s) ? `"${s}"` : s;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[m]));
+  }
+
+</script>

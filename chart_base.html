@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+  </head>
+  <body>
+    
+  </body>
+</html>
+<div class="modal fade" id="chartModal" tabindex="-1" aria-hidden="true" data-bs-keyboard="false" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xxl" style="max-width:95vw;">
+    <div class="modal-content p-4">
+      <!-- 上方標題 + 叉叉 -->
+      <div class="modal-header border-0">
+        <div class="w-100 text-center">
+          <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center"
+                style="font-size:1.6rem; color:#ffa07a; letter-spacing:2px;">
+            <i class="bi bi-bar-chart-line-fill" style="font-size:2.2rem; vertical-align:middle;"></i>
+            統計圖表
+          </span>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <!-- 資料來源切換 -->
+        <div class="mb-3">
+          <label for="dataSourceSelect" class="fw-bold me-2">資料來源：</label>
+          <select id="dataSourceSelect" class="form-select form-select-sm d-inline-block" style="width:180px;" onchange="switchDataSource()">
+            <option value="disposal" selected>銷案清單</option>
+            <option value="exam">測驗紀錄</option>
+          </select>
+        </div>
+
+        <!-- 篩選區（固定樣式，內容由模組塞入） -->
+        <div id="dynamicFilterArea" class="mb-3" ></div>
+
+        <!-- 說明區（新增，模組只要寫文字塞這裡） -->
+        <div id="descArea" class="p-4 mb-4 fw-bold  bg-white border rounded shadow-sm text-secondary"></div>
+
+        <!-- 圖表區（固定樣式，內容由模組塞入） -->
+        <div id="chartArea" class="p-3 mb-4  bg-light border rounded shadow-sm" style="min-height:300px;"></div>
+
+        <!-- 表格區（固定樣式，內容由模組塞入） -->
+        <div id="tableArea_chart" class="p-3 bg-light border rounded" style="max-height:60vh; overflow:auto;">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 id="tableTitle" class="mb-0 fw-bold">統計表格</h5>
+            <div class="text-muted" id="tableInfo"></div>
+          </div>
+          <div id="tableContent"></div>
+        </div>
+
+      </div>
+
+      <!-- 下方關閉按鈕 -->
+      <div class="modal-footer justify-content-center border-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  function resetChartShell() {
+    // 篩選、圖表清空
+    document.getElementById("dynamicFilterArea").innerHTML = "";
+    document.getElementById("chartArea").innerHTML = "";
+    document.getElementById("descArea").innerHTML = "";
+    // 表格區重設骨架
+    document.getElementById("tableArea_chart").innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 id="tableTitle" class="mb-0 fw-bold">統計表格</h5>
+        <div class="text-muted" id="tableInfo"></div>
+      </div>
+      <div id="tableContent"></div>
+    `;
+  }
+
+  // 切換資料來源
+  function switchDataSource() {
+    const val = document.getElementById("dataSourceSelect").value;
+    resetChartShell();
+
+    if (val === "disposal" && typeof renderDisposalModule === "function") {
+      renderDisposalModule();
+
+      // ✅ 用 disposal 專屬說明函式
+      if (typeof descriptionText_disposal === "function") {
+        document.getElementById("descArea").innerText = descriptionText_disposal();
+      }
+
+      // ✅ 綁定 disposal 指標變更
+      document.getElementById("chartSelect")?.addEventListener("change", () => {
+        document.getElementById("descArea").innerText = descriptionText_disposal();
+      });
+
+    } else if (val === "exam" && typeof renderExamModule === "function") {
+      renderExamModule();
+
+      // ✅ 用 exam 專屬說明函式
+      if (typeof descriptionText_exam === "function") {
+        document.getElementById("descArea").innerText = descriptionText_exam();
+      }
+
+      // ✅ 綁定 exam 指標變更
+      document.getElementById("examChartSelect")?.addEventListener("change", () => {
+        document.getElementById("descArea").innerText = descriptionText_exam();
+      });
+    }
+  }
+
+
+  document.getElementById('chartModal').addEventListener('shown.bs.modal', () => {
+    const source = document.getElementById('dataSourceSelect')?.value;
+    if (source === "disposal") {
+      renderDisposalModule();
+    } else if (source === "exam") {
+      renderExamModule();
+    }
+  });
+
+  // 預設載入銷案清單
+  document.addEventListener("DOMContentLoaded", () => {
+    switchDataSource();
+  });
+
+
+</script>

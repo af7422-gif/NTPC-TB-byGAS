@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <!-- 登入區塊 -->
+    <div id="loginSection">
+      <?!= include('login'); ?>
+    </div>
+
+    <!-- 考試區塊 -->
+    <div id="examSection" style="display:none;">
+      <?!= include('exam'); ?>
+    </div>
+
+    <!-- 主功能區塊 -->
+    <div id="mainSection" style="display:none;">
+      <input type="hidden" id="webAppUrl" value="<?= serviceUrl ?>">
+      <?!= include('main'); ?>
+      <?!= include('chart_base'); ?>
+      <?!= include('chart_disposal'); ?>
+      <?!= include('chart_exam'); ?>
+      <?!= include('questionBank'); ?>
+      <?!= include('review_flow'); ?>
+    </div>
+
+    <script>
+
+    // 顯示主頁
+    function showMainSection() {
+      document.body.classList.remove('login-body');
+      document.body.classList.add('main-body');
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('examSection').style.display = 'none';
+      document.getElementById('mainSection').style.display = '';
+      // 登入後馬上先抓圖表資料
+    }
+
+    // 顯示登入頁
+    function showLoginSection() {
+      document.body.classList.remove('main-body');
+      document.body.classList.add('login-body');
+      document.getElementById('loginSection').style.display = '';
+      document.getElementById('examSection').style.display = 'none';
+      document.getElementById('mainSection').style.display = 'none';
+    }
+
+    // 顯示考試頁
+    function showExamSection() {
+      document.body.classList.remove('login-body');
+      document.body.classList.add('main-body');
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('examSection').style.display = '';
+      document.getElementById('mainSection').style.display = 'none';
+    }
+    </script>
+  </body>
+</html>

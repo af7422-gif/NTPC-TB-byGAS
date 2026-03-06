@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <base target="_top">
+  <style>
+    /* 使用變數局部化與父層鎖定來防止樣式污染 */
+    :root {
+      --tech-cyan: #00f2ff;
+      --tech-blue: #0066ff;
+      --tech-green: #00ff88;
+      --tech-emerald: #00a368;
+      --tech-red: #ff4d4d;
+      --soft-border: rgba(0, 242, 255, 0.2); /* 調低邊框銳利度 */
+      --placeholder-light: rgba(255, 255, 255, 0.6);
+    }
+
+    .login-body {
+      position: relative;
+      min-height: 100vh;
+      min-height: 100svh;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      margin: 0;
+    }
+
+    .login-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      z-index: 0;
+      filter: brightness(0.9);
+    }
+
+    /* 容器樣式 */
+    .login-container {
+      position: relative;
+      z-index: 1;
+      transform: translateX(32px);
+      background: transparent !important;
+      backdrop-filter: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      width: 90vw;
+      max-width: 370px;
+      min-width: 300px;
+      padding: 50px 30px;
+    }
+
+    /* 標題 */
+    .login-container .login-title {
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.15em;
+      margin-bottom: 25px;
+      text-align: center;
+      background: linear-gradient(to bottom, #fff 40%, var(--tech-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 15px rgba(0, 242, 255, 0.4));
+    }
+
+    .login-container .form-label {
+      color: var(--tech-cyan);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    /* 自動填入修正 */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus, 
+    input:-webkit-autofill:active,
+    select:-webkit-autofill,
+    select:-webkit-autofill:hover,
+    select:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+      -webkit-text-fill-color: #fff !important;
+      transition: background-color 5000s ease-in-out 0s;
+      background: transparent !important;
+    }
+
+    /* 主登入頁輸入框 */
+    .login-container .form-control {
+      background: transparent !important;
+      border: none !important;
+      border-bottom: 1px solid rgba(0, 242, 255, 0.4) !important;
+      border-radius: 0 !important;
+      color: #fff !important;
+      padding: 10px 5px;
+      transition: all 0.4s ease;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      font-size: 0.95rem;
+    }
+
+    .login-container .form-control:focus {
+      box-shadow: none !important;
+      border-bottom-color: var(--tech-cyan) !important;
+      background: rgba(0, 242, 255, 0.05) !important;
+    }
+
+    .login-container .form-control::placeholder {
+      color: var(--placeholder-light);
+    }
+
+    /* 按鈕共用基礎樣式與特效 */
+    .btn-tech {
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-weight: 700;
+      text-transform: uppercase;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      z-index: 1;
+    }
+
+    /* 按下時的物理壓下特效 */
+    .btn-tech:active {
+      transform: scale(0.96) translateY(2px);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+      filter: brightness(0.9);
+    }
+
+    .btn-tech::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: -1;
+    }
+
+    .btn-tech:hover::before {
+      animation: flare-spread 0.4s ease-out forwards;
+    }
+
+    @keyframes flare-spread {
+      0% { width: 0; height: 0; opacity: 0.9; }
+      100% { width: 600px; height: 600px; opacity: 0; }
+    }
+
+    /* 登入按鈕 */
+    #loginBtn {
+      background: linear-gradient(90deg, var(--tech-blue), var(--tech-cyan));
+      padding: 12px 0;
+      font-size: 1.15rem;
+      letter-spacing: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 102, 255, 0.3);
+      margin-top: 25px;
+    }
+
+    /* 送出申請按鈕 */
+    #submitRegBtn {
+      background: linear-gradient(90deg, var(--tech-emerald), var(--tech-green));
+      padding: 12px 0;
+      font-size: 1rem;
+      letter-spacing: 4px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 10px rgba(0, 255, 136, 0.2);
+    }
+
+    .login-container .login-btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9rem;
+      margin-top: 15px;
+      margin-bottom: 25px;
+      transition: 0.3s;
+    }
+
+    .login-container .login-btn-secondary:hover {
+      background: rgba(0, 242, 255, 0.1);
+      border-color: var(--tech-cyan);
+      color: #fff;
+    }
+
+    /* 註冊狀態提示文字 */
+    #registerStatus {
+      color: var(--tech-red);
+      font-size: 0.9rem;
+      margin-top: 15px;
+      font-weight: 500;
+      min-height: 1.5rem;
+      text-shadow: 0 0 8px rgba(255, 77, 77, 0.4);
+      animation: fadeInStatus 0.3s ease;
+    }
+
+    @keyframes fadeInStatus {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 申請帳號 Modal 樣式優化 - 調整底色變淺且減少銳利感 */
+    .login-register-content {
+      background: rgba(15, 32, 53, 0.85) !important; /* 底色調淺並增加透明感 */
+      backdrop-filter: blur(12px); /* 增加模糊度讓視覺更柔和 */
+      border: 1px solid var(--soft-border) !important; /* 使用較淡的邊框顏色 */
+      box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5) !important;
+      color: #fff !important;
+      border-radius: 16px !important; /* 增加圓角半徑減少銳利感 */
+    }
+
+    .login-register-content .form-label {
+      color: rgba(0, 242, 255, 0.7); /* 標籤顏色稍微變淡 */
+      font-size: 0.9rem;
+    }
+
+    .login-register-content .form-control {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important; /* 減弱輸入框邊框 */
+      border-radius: 8px !important;
+      color: #fff !important;
+    }
+
+    .login-register-content .form-control::placeholder {
+      color: var(--placeholder-light) !important;
+      font-size: 0.85rem;
+    }
+
+    .login-register-content select.form-select {
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2300f2ff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+      background-repeat: no-repeat !important;
+      background-position: right 12px center !important;
+      background-size: 16px 12px !important;
+      padding-right: 40px !important;
+      color: #fff !important;
+      appearance: none;
+    }
+
+    .login-register-content select option {
+      background: #0d1b2a;
+      color: #fff;
+    }
+
+    .login-container #progressWrapper {
+      width: 100%;
+      max-width: 300px;
+      margin: 12px auto;
+    }
+    .login-container .progress {
+      height: 2px;
+      background-color: rgba(255,255,255,0.1);
+    }
+    .login-container .progress-bar {
+      background-color: var(--tech-cyan);
+    }
+    .login-container #progressText {
+      text-align: center;
+      color: var(--tech-cyan);
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body class="login-body">
+  <img class="login-bg" src="https://lh3.googleusercontent.com/d/1CpBzE2lyTvASEn1F3kywQIQRqvOGX5XR" alt="Background">
+
+  <div class="login-container">
+    <div class="login-title">銷案審核助手</div>
+
+    <form class="login-form" onsubmit="event.preventDefault();login();">
+      <div class="mb-3">
+        <label for="account" class="form-label">公務帳號</label>
+        <input type="text" class="form-control" id="account" placeholder="請輸入公務帳號">
+      </div>
+
+      <div class="mb-3">
+        <label for="password" class="form-label">密碼</label>
+        <input type="password" class="form-control" id="password" placeholder="請輸入密碼">
+      </div>
+
+      <button type="submit" id="loginBtn" class="btn btn-primary w-100 mb-2 btn-tech">登入</button>
+      <button type="button"
+              class="btn btn-outline-secondary w-100 login-btn-secondary"
+              onclick="openModal()">
+        申請帳號
+      </button>
+    </form>
+
+    <div id="progressWrapper">
+      <div class="progress">
+        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%;"></div>
+      </div>
+      <div id="progressText">資料載入中...</div>
+    </div>
+  </div>
+
+  <!-- Register Modal -->
+  <div class="modal fade" id="registerModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content px-3 py-2 login-register-content">
+        <div class="modal-header border-0 pb-0 justify-content-center" style="flex-direction:column;">
+          <span style="font-size:3.4rem; color:var(--tech-cyan); margin-top:10px; margin-bottom:5px;">
+            <i class="material-icons" style="font-size:3.2rem; vertical-align:middle;">person_add_alt_1</i>
+          </span>
+          <h5 class="modal-title w-100 text-center" style="font-weight:700; color:var(--tech-cyan); letter-spacing:1px;">申請帳號</h5>
+        </div>
+        <div class="modal-body pt-0">
+          <form id="registerForm" onsubmit="event.preventDefault();submitRegister();">
+            <div class="mb-2">
+              <label for="unit" class="form-label mt-3">管理單位</label>
+              <select class="form-select form-control" id="unit">
+                <option>板橋區</option><option>三重區</option><option>中和區</option><option>永和區</option>
+                <option>新莊區</option><option>新店區</option><option>樹林區</option><option>鶯歌區</option>
+                <option>三峽區</option><option>淡水區</option><option>汐止區</option><option>瑞芳區</option>
+                <option>土城區</option><option>蘆洲區</option><option>五股區</option><option>泰山區</option>
+                <option>林口區</option><option>深坑區</option><option>石碇區</option><option>坪林區</option>
+                <option>三芝區</option><option>石門區</option><option>八里區</option><option>平溪區</option>
+                <option>雙溪區</option><option>貢寮區</option><option>金山區</option><option>萬里區</option>
+                <option>烏來區</option>     
+              </select>
+            </div>
+            <div class="mb-2">
+              <label for="regAccount" class="form-label">公務帳號</label>
+              <input type="text" class="form-control" id="regAccount" placeholder="輸入公務帳號">
+            </div>
+            <div class="mb-2">
+              <label for="regPassword" class="form-label">密碼</label>
+              <input type="password" class="form-control" id="regPassword" placeholder="輸入密碼(勿使用與其他用途一樣的密碼)">
+            </div>
+            <div class="mb-2">
+              <label for="regName" class="form-label">姓名</label>
+              <input type="text" class="form-control" id="regName" placeholder="請輸入姓名">
+            </div>
+            <div class="mb-2">
+              <label for="regExt" class="form-label">分機</label>
+              <input type="text" class="form-control" id="regExt" placeholder="請輸入分機">
+            </div>
+            <div class="form-check mt-3 mb-4">
+              <input class="form-check-input" type="checkbox" id="agreeRule">
+              <span class="ms-1">我已閱讀並同意<a href="#" onclick="openRuleModal(); return false;" style="color:var(--tech-cyan)">使用規範與注意事項</a></span>
+            </div>
+            <div class="d-grid gap-2 mb-2">
+              <button type="submit" id="submitRegBtn" class="btn btn-success btn-tech">送出申請</button>
+              <button type="button" class="btn btn-outline-light py-2" onclick="closeModal()">取消</button>
+            </div>
+            <p id="registerStatus" class="text-center"></p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<div class="modal fade" id="ruleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content p-4">
+
+      <!-- ❌ 不要 modal-header -->
+
+      <div class="modal-body px-0" style="line-height:1.8;">
+
+        <!-- 標題放這裡 -->
+        <h4 class="fw-bold text-center mb-4">
+          使用規範與注意事項
+        </h4>
+
+        <h5 class="mt-3 mb-2">一、本網站定位與使用目的</h5>
+          <ul>
+            <li>本網站為輔助性行政工具，用以協助結核病（TB）及潛伏結核感染（LTBI）個案相關銷案資料之填報、檢核、審核與統計分析。</li>
+            <li>本網站所呈現之提示、統計或檢核結果，<strong>不取代法定公文、正式審查權責或專業判斷</strong>，最終內容仍以輔導員依現行規範審核為準。</li>
+            <li>本網站內容係依現行結核病防治相關規範（如工作手冊、診治指引等）設計，惟實務仍應以<strong>最新公告版本與主管機關函釋</strong>為準。</li>
+          </ul>
+
+        <h5 class="mt-4 mb-2">二、帳號使用原則</h5>
+          <ul>
+            <li>本網站帳號僅限<strong>實際執行結核病相關業務之承辦人使用</strong>，不得轉借、共用或冒用</li>
+            <li>登入密碼<strong>避免其他用途之密碼重複</strong></li>
+            <li>使用者應<strong>確保個人登入資訊之安全</strong>，若發現帳號遭他人不當使用，應立即通報。</li>
+            <li>使用者<strong>不可</strong>嘗試登入他人帳號已取得非所屬轄區內的資料。</li>
+            <li>使用者如業務如不承辦結核病防治業務時，管理者得即刻關閉其權限</li>
+          </ul>
+
+        <h5 class="mt-4 mb-2">三、資料填報與使用</h5>
+          <p>
+            本網站所留存之各項紀錄（包含但不限於資料填報內容、退件與補件紀錄、審核結果及案件處理歷程等），均可能作為下列用途之參考依據：
+          </p>
+          <ul>
+            <li>流程追蹤與案件管理</li>
+            <li>內部品質管理、缺失分析與流程改善</li>
+            <li>教育訓練、經驗傳承及統計分析使用</li>
+          </ul>
+          <p>
+            使用者於接獲退件或補正通知後，應依審核意見確實修正相關資料；若因錯誤、遺漏、未即時修正，或與實際狀況不符，致影響案件處理時效、造成重複退件或增加後續作業負擔，將計入缺失項目。
+          </p>
+
+        <h5 class="mt-4 mb-2">四、資訊安全</h5>
+          <ul>
+            <li>使用者於系統中<strong>僅得輸入業務必要且去敏化之資料</strong>，嚴禁輸入與業務無關之個人資料</li>
+            <li>操作過程中，不得任意截圖、下載、外流或另作他用</li>
+          </ul>
+      </div>
+
+      <!-- 關閉鍵在正下方 -->
+      <div class="modal-footer border-0 justify-content-center">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">
+          關閉
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+  <script>
+
+  let progress = 0;
+  // 全域快取
+  let fullDisposalData = null;
+  let allTBs = null;
+  let cachedDisposalData = null;
+  let retryCount = 0;
+  let accountData = [];
+  let currentUser = null;
+
+  function setProgress(val, text) {
+    if (val < progress) return; // 小於現有進度就不更新
+    progress = val;
+    const bar = document.getElementById("progressBar");
+    bar.style.width = val + "%";
+    // bar.innerText = val + "%";   // <-- 這行拿掉
+    bar.innerText = "";             // 或改成這行（進度條內不顯示數字）
+    bar.setAttribute("aria-valuenow", val);
+    document.getElementById("progressText").innerText = text || "資料載入中...";
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setProgress(10, "初始化中...");
+    disableLoginBtns(true);
+
+    // 🔄 建立假進度條動畫（讓使用者覺得資料在跑）
+    const bar = document.getElementById("progressBar");
+    let fakeProgress = 10;
+    const fakeTimer = setInterval(() => {
+      if (fakeProgress < 80) {
+        fakeProgress += Math.random() * 3; // 每次增加 1~3%
+        setProgress(fakeProgress, "取得後端資料中...");
+      }
+    }, 200);
+
+    // 📦 呼叫後端
+    setProgress(40, "取得後端資料中...");
+    google.script.run.withSuccessHandler(function (data) {
+      clearInterval(fakeTimer); // 停止假進度條
+
+      // --- 實際載入 ---
+      setProgress(60, "讀取帳號資料...");
+      accountData = data.accounts;
+
+      setTimeout(() => {
+        setProgress(70, "讀取銷案清單...");
+        fullDisposalData = data.all;
+
+        setTimeout(() => {
+          setProgress(85, "載入題庫與測驗資料...");
+          cachedDisposalData = data;
+
+          // 🟢 所有表格資料就緒
+          isDisposalReady = true;
+          allTBs = fullDisposalData.slice(1).map(row => ({
+            tb: row[fullDisposalData[0].indexOf("總編號")],
+            endDate: row[fullDisposalData[0].indexOf("結束治療日")]
+          }));
+
+          checkAllReady(); // → 會將進度設為100%並啟用按鈕
+        }, 500);
+      }, 600);
+    }).getDisposalListData();
+  });
+
+  function disableLoginBtns(state) {
+    document.getElementById("loginBtn").disabled = state;
+    document.getElementById("account").disabled = state;
+    document.getElementById("password").disabled = state;
+    document.querySelector('button[onclick="openModal()"]').disabled = state;
+  }
+
+  function checkAllReady() {
+    if (isDisposalReady) {
+      setProgress(100, "系統已準備就緒！");
+      setTimeout(() => {
+        document.getElementById("progressWrapper").style.visibility = "hidden";
+        document.getElementById("loginBtn").disabled = false;
+        document.getElementById("account").disabled = false;
+        document.getElementById("password").disabled = false;
+        document.querySelector('button[onclick="openModal()"]').disabled = false;
+      }, 450);
+    }
+  }
+
+  // 登入
+  function login() {
+    const acc = document.getElementById("account").value.trim();
+    const pwd = document.getElementById("password").value;
+    const userObj = accountData.find(obj =>
+      String(obj["公務帳號"]).toLowerCase() === acc.toLowerCase() && obj["密碼"] === pwd
+    );
+
+    if (!userObj) {
+      alert("帳號或密碼錯誤！");
+      return;
+    }
+
+    if (userObj["單位名稱"] !== "衛生局") {
+      if (!userObj["審核"] || String(userObj["審核"]).toUpperCase() !== "TRUE") {
+        alert("帳號尚未審核通過！");
+        return;
+      }
+    }
+
+    // === 登入成功，記錄當天日期 ===
+    currentUser = userObj;
+    currentUser.loginDate = getTodayString();
+
+    // 小工具：格式化 YYYY/MM/DD
+    function formatYMD(d) {
+      if (!d) return null;
+      const dt = new Date(d);
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${yyyy}/${mm}/${dd}`;
+    }
+
+    if (String(userObj["考試"]).toUpperCase() === "TRUE") {
+      const lastLogin = userObj["上次登入時間"];
+      const todayStr = formatYMD(new Date());
+      const lastLoginStr = formatYMD(lastLogin);
+
+      if (lastLoginStr === todayStr) {
+        // 今天已經登入過 → 直接進主頁
+        mainInitAfterLogin(userObj);
+        google.script.run.updateLastLogin(acc);
+      } else {
+        // 判斷要考幾題
+        let numQuestions;
+
+        if (!lastLogin) {
+          numQuestions = 5;
+        } else {
+          const diffMs = new Date() - new Date(lastLogin);
+          const daysDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          if (daysDiff <= 2) {
+            numQuestions = 3;
+          } else if (daysDiff <= 5) {
+            numQuestions = 4;
+          } else {
+            numQuestions = 5;
+          }
+        }
+
+        showExamSection();
+        initExamQuestions(numQuestions);
+      }
+    } else {
+      // 不用考試 → 直接進主頁
+      mainInitAfterLogin(userObj);
+      google.script.run.updateLastLogin(acc);
+    }
+
+    // 背後驗證
+    google.script.run.withSuccessHandler(function (result) {
+      if (result !== "OK") {
+        showLoginSection();
+        alert("後端驗證失敗，請重新登入！");
+      }
+    }).checkLogin(acc, pwd);
+  }
+
+    function getTodayString() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    
+    function mainInitAfterLogin(userObj) {
+      showMainSection();
+      document.getElementById("name").innerText = userObj["姓名"];
+      document.getElementById("userUnit").innerText = userObj["單位名稱"];
+      doPageInit();
+      renderTableWithFilter();
+    }
+
+
+
+    // 小工具：輪詢等待條件成立
+    function waitFor(condFn, interval = 200, maxTimes = 20) {
+      return new Promise((resolve, reject) => {
+        let tries = 0;
+        const t = setInterval(() => {
+          if (condFn()) { clearInterval(t); resolve(); }
+          else if (++tries >= maxTimes) { clearInterval(t); reject(); }
+        }, interval);
+      });
+    }
+
+
+  //============↓↓↓↓↓↓↓初始化管理單位/輔導員下拉式選單↓↓↓↓↓↓↓============
+  function doPageInit() {
+    // 清理 name / unit 多餘空白
+    const unitEl = document.getElementById("userUnit");
+    const nameEl = document.getElementById("name");
+    if (unitEl) unitEl.innerText = unitEl.innerText.trim();
+    if (nameEl) nameEl.innerText = nameEl.innerText.trim();
+
+    const unit = unitEl ? unitEl.innerText : "";
+
+    initUnitFilter(unit);
+    initTutorFilter(unit);
+    initApplicantFilter(unit);
+
+    const exportBtn = document.getElementById("exportExcelBtn");
+    const applyBtn  = document.getElementById("applyBtn");
+    const manualBtn = document.getElementById("manualBtn");
+    const chartBtn  = document.getElementById("chartBtn");  
+    const qBankBtn  = document.getElementById("questionBankBtn");
+
+    // 🔓 所有人都能匯出 Excel
+    if (exportBtn) exportBtn.style.display = "";
+
+    if (unit === "衛生局") {
+      if (applyBtn) applyBtn.style.display = "none";
+      if (manualBtn) manualBtn.style.display = "none";
+      // if (chartBtn) chartBtn.style.display = "";
+      if (qBankBtn) qBankBtn.style.display = "";
+    } else {
+      if (applyBtn) applyBtn.style.display = "";
+      if (manualBtn) manualBtn.style.display = "";
+      // if (chartBtn) chartBtn.style.display = "none";
+      if (qBankBtn) qBankBtn.style.display = "none";
+    }
+
+    renderTableWithFilter(); 
+    checkAndShowMsgOnLoad();
+  }
+
+  function initUnitFilter(unit) {
+    const unitFilter = document.getElementById("unitFilter");
+    if (!unitFilter) return;
+
+    unitFilter.innerHTML = "";
+
+    if (unit === "衛生局") {
+      const allUnits = [
+        "🌐 全部", "板橋區", "新莊區", "中和區", "永和區", "土城區", "樹林區", "三峽區", "鶯歌區", "三重區",
+        "蘆洲區", "五股區", "泰山區", "林口區", "新店區", "深坑區", "石碇區", "坪林區", "烏來區", "汐止區", "瑞芳區",
+        "貢寮區", "平溪區", "雙溪區", "八里區", "淡水區", "三芝區", "石門區", "金山區", "萬里區"
+      ];
+      allUnits.forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = u;
+        opt.text = u;
+        unitFilter.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement("option");
+      opt.value = unit;
+      opt.text = unit;
+      unitFilter.appendChild(opt);
+    }
+  }
+
+  function initTutorFilter(unit) {
+    const wrapper = document.getElementById("tutorFilterWrapper");
+    const tutorFilter = document.getElementById("tutorFilter");
+    const name = document.getElementById("name")?.innerText.trim();
+
+    if (!wrapper || !tutorFilter) return;
+
+    if (unit === "衛生局") {
+      wrapper.style.display = "";
+      tutorFilter.innerHTML = "";
+
+      const allTutors = [
+        "🌐 全部", "陳詠梅", "周文懋", "劉宇倫", "黃依婷", "林君諭", "楊政憲", "施冠毅", "江適揚", "李權展"
+      ];
+
+      allTutors.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.text = t;
+        tutorFilter.appendChild(opt);
+      });
+
+      // 預設值為登入者（如是指導員）
+      tutorFilter.value = allTutors.includes(name) ? name : "🌐 全部";
+
+    } else {
+      wrapper.style.display = "none";
+    }
+  }
+
+  //申請人下拉式選單篩選
+  function initApplicantFilter(unit) {
+    const wrapper = document.getElementById("applicantFilterWrapper");
+    const applicantFilter = document.getElementById("applicantFilter");
+    const name = document.getElementById("name")?.innerText.trim();
+
+    if (!wrapper || !applicantFilter) return;
+
+    // 只有 userunit 不是衛生局時才顯示
+    if (unit !== "衛生局") {
+      wrapper.style.display = "";
+      applicantFilter.innerHTML = "";
+
+      // 從 accountData 找該單位所有帳號的姓名
+      const users = accountData
+        .filter(acc => String(acc["單位名稱"]).trim() === unit)
+        .map(acc => String(acc["姓名"]).trim())
+        .filter(Boolean);
+
+      // 去除重複，排序
+      const arr = Array.from(new Set(users)).sort();
+
+      // 組下拉
+      applicantFilter.innerHTML = `<option value="all">🌐 全部</option>`;
+      arr.forEach(u => {
+        applicantFilter.innerHTML += `<option value="${u}">${u}</option>`;
+      });
+
+      //預設值為目前登入者姓名
+      applicantFilter.value = name;
+    } else {
+      wrapper.style.display = "none";
+    }
+  }
+
+
+//============↑↑↑↑↑↑↑初始化管理單位/輔導員下拉式選單↑↑↑↑↑↑↑============
+
+    // 開啟註冊 Modal
+    function openModal() {
+      document.getElementById('registerStatus').innerText = "";
+      var myModal = new bootstrap.Modal(document.getElementById('registerModal'));
+      myModal.show();
+    }
+    
+    // 關閉 Modal 並清空欄位
+    function closeModal() {
+      const modalEl = document.getElementById('registerModal');
+      const modalObj = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+      modalObj.hide();
+      document.getElementById('registerStatus').innerText = "";
+      document.getElementById('regAccount').value = "";
+      document.getElementById('regPassword').value = "";
+      document.getElementById('regName').value = "";
+      document.getElementById('regExt').value = "";
+      document.getElementById('unit').selectedIndex = 0;
+    }
+    // 帳號即時檢查
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("regAccount").addEventListener("input", function() {
+        const val = this.value.trim().toLowerCase();
+        if (accountData.some(accObj => String(accObj["公務帳號"]).toLowerCase() === val)) {
+          document.getElementById("registerStatus").innerText = "此帳號已申請過！";
+        } else {
+          document.getElementById("registerStatus").innerText = "";
+        }
+      });
+    });
+
+    function openRuleModal() {
+      const modal = new bootstrap.Modal(document.getElementById("ruleModal"));
+      modal.show();
+    }
+
+    // 註冊送出
+    function submitRegister() {
+      const unit = document.getElementById("unit").value;
+      const acc = document.getElementById("regAccount").value.trim();
+      const pwd = document.getElementById("regPassword").value;
+      const name = document.getElementById("regName").value.trim();
+      const ext = document.getElementById("regExt").value.trim();
+      const agree = document.getElementById("agreeRule").checked;
+
+      if (!unit || !acc || !pwd || !name || !ext) {
+        document.getElementById("registerStatus").innerText = "所有欄位都要填寫！";
+        return;
+      }
+      if (accountData.some(accObj => String(accObj["公務帳號"]).toLowerCase() === acc.toLowerCase())) {
+        document.getElementById("registerStatus").innerText = "此帳號已申請過！";
+        return;
+      }
+      if (!agree) {
+        document.getElementById("registerStatus").innerText =
+          "請先閱讀並勾選「使用規範與注意事項」。";
+        return;
+      }
+      document.getElementById("registerStatus").innerText = "申請中...";
+      google.script.run.withSuccessHandler(function(result) {
+        if (result.success) {
+          alert("申請成功，請用新帳號登入！");
+          document.getElementById("registerStatus").innerText = "申請成功，待審核通過後登入！";
+          closeModal();
+          google.script.run.withSuccessHandler(function(data) {
+            accountData = data.accounts; // 保持為物件陣列 [{ "公務帳號": ..., ... }]
+          }).getDisposalListData();
+        } else {
+          document.getElementById("registerStatus").innerText = "帳號重複，申請失敗！";
+        }
+      }).registerAccount({unit, acc, pwd, name, ext});
+    }
+  </script>
+</body>
+</html>
