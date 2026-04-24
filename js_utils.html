@@ -1,0 +1,568 @@
+<script>
+/**
+1.包含共用工具、訊息處理、媒體及檔案處理
+2.由api_index.html呼叫
+ */
+lucide.createIcons(); //載入icon
+//============================================================↓↓↓↓↓↓↓工具↓↓↓↓↓↓↓============================================================
+//自動撐高文字輸入框 (textarea)
+function autoGrow(element) {
+  element.style.height = "auto";
+  element.style.height = (element.scrollHeight) + "px";
+}
+
+//審核狀態解析
+function normalizeStatus(status) {
+  // 已經是新格式
+  if (STATUS_MAP[status]) return status;
+
+  // 舊 emoji → 新 code
+  for (const key in STATUS_MAP) {
+    if (STATUS_MAP[key].legacy === status) {
+      return key;
+    }
+  }
+
+  return status;
+}
+
+//顯示審核狀態
+function renderStatus(status) {
+  const s = STATUS_MAP[normalizeStatus(status)];
+  if (!s) return status;
+
+  return `
+    <span style="
+      color:${s.color};
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:4px;
+      width:100%;
+    ">
+      <i data-lucide="${s.icon}" class="icon-sm"></i>
+      ${s.label}
+    </span>
+  `;
+}
+
+//將審核狀態塞進審核表單右上角
+function renderModalStatus(statusCode, modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+
+  const statusEl = modal.querySelector(".modal-status");
+  if (!statusEl) return;
+
+  const config = STATUS_MAP[statusCode] || STATUS_MAP["not_processed"];
+
+  // reset class
+  statusEl.className = "modal-status " + config.class;
+
+  statusEl.innerHTML = `
+    <i data-lucide="${config.icon}"></i>
+    <span>${config.label}</span>
+  `;
+
+  lucide.createIcons();
+}
+
+// SVG圖示產生器
+function getIcon(name, customStyle = '', extraAttrs = '') {
+  const svg = LUCIDE_ICONS[name] || '';
+  if (!svg) return '';
+
+  // 1. 我們加上一個統一的 class "lucide-wrapper"
+  // 2. 加上專屬的 class 如 "icon-search", "icon-trash" 方便 CSS 抓取
+  return `
+    <span class="lucide-wrapper icon-${name}" style="${customStyle}" ${extraAttrs}>
+      ${svg}
+    </span>`;
+}
+
+//特殊字元轉換，防止版面跑掉或 XSS
+function escapeHtml(text) {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// 貼上圖片模塊
+function handlePasteIconClick(element) {
+    // element 就是傳進來的 this，也就是那個 Icon 的容器
+    const icon = element; 
+    
+    // 尋找最近的列，這點非常重要，因為後續貼上圖片要明確知道貼在哪一列
+    currentPasteRow = icon.closest(".review-item-row");
+    tempBase64Image = "";
+
+    // 初始化 Modal 內容
+    const pasteArea = document.getElementById("pasteImageArea");
+    const pastePreview = document.getElementById("pasteImagePreview");
+    
+    if (pasteArea) pasteArea.innerHTML = "請在此處按 Ctrl+V 貼上圖片";
+    if (pastePreview) pastePreview.style.display = "none";
+
+    // 顯示 Modal
+    const modalElem = document.getElementById("pasteImageModal");
+    if (modalElem) {
+        bootstrap.Modal.getOrCreateInstance(modalElem).show();
+    }
+}
+
+// 建立銷案清單索引
+function buildCaseMap() {
+  const headers = fullDisposalData[0];
+  const rows = fullDisposalData.slice(1);
+
+  const tbIdx = headers.indexOf("總編號");
+  const applyTimeIdx = headers.indexOf("申請時間");
+
+  caseMap.clear();
+
+  rows.forEach(row => {
+    const key = `${row[tbIdx]}__${normalizeDateTime(row[applyTimeIdx])}`;
+    caseMap.set(key, row);
+  });
+}
+
+// 時間正規化（和後端一致）
+function normalizeDateTime(val) {
+  if (val instanceof Date) {
+  return Utilities.formatDate(
+  val,
+  Session.getScriptTimeZone(),
+  "yyyy/MM/dd HH:mm:ss"
+  );
+  }
+  return String(val).replace(/-/g, "/").trim();
+}
+
+// 🔹 HTML escape 工具函數
+function escapeHTML(str) {
+  return String(str).replace(/[&<>"']/g, m => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+
+//將日期轉為純數字字串以利比對
+function simpleDateStr(dateStr) {
+  return dateStr ? dateStr.replace(/[^0-9]/g, '').substring(0, 8) : '';
+}
+
+//計算銷案期限
+function calcDisposalDeadline(caseType, endDate, reason) {
+  // endDate 格式：'YYYY-MM-DD' 或 'YYYY/MM/DD'
+  let date = new Date(endDate.replace(/-/g, '/'));
+  let days = 0;
+
+  if (caseType === "LTBI") {
+    days = 14;
+  } else if (caseType === "TB") {
+    if (["完成管理", "其他完治", "其他（視同結果失落）"].includes(reason)) {
+      days = 30;
+    } else {
+      days = 90;
+    }
+  }
+  // 加天數
+  date.setDate(date.getDate() + days);
+
+  // 輸出 YYYY/MM/DD
+  const pad = n => String(n).padStart(2, "0");
+  return date.getFullYear() + "/" + pad(date.getMonth() + 1) + "/" + pad(date.getDate());
+}
+
+// 通用排序，支援 emoji, 中文, 英文, 數字
+function smartCompare(a, b) {
+  a = a ? a.toString() : "";
+  b = b ? b.toString() : "";
+  // 純數字優先
+  if (!isNaN(a) && !isNaN(b) && a !== "" && b !== "") {
+  return Number(a) - Number(b);
+  }
+  // emoji/中/英/符號等
+  return a.localeCompare(b, 'zh-Hant-u-co-emoji', { numeric: true });
+}
+
+// 審核狀態自訂排序規則
+function statusOrder(status) {
+  switch (status) {
+    case "not_processed": return 1;
+    case "pending": return 2;
+    case "patch": return 3;
+    case "rejected": return 4;
+    case "approved": return 5;
+    case "cancelled": return 6;
+    default: return 99;
+  }
+}
+//============================================================↑↑↑↑↑↑↑工具↑↑↑↑↑↑↑============================================================
+
+
+//============================================================↓↓↓↓↓↓↓訊息處理↓↓↓↓↓↓↓============================================================
+// 呼叫自訂的警告彈跳視窗
+function showCustomAlertModal(msg) {
+  const modalEl = document.getElementById('customAlertModal');
+  const msgEl = document.getElementById('customAlertMessage');
+  if (!modalEl || !msgEl) return;
+
+  msgEl.innerText = msg;
+  const alertModal = new bootstrap.Modal(modalEl);
+  alertModal.show();
+}
+
+// 呼叫「確定提交？」的動畫對話框
+function confirmAndSubmit(submitFn) {
+  const confirmModalEl = document.getElementById('confirmUpdateModal');
+  const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalEl);
+  confirmModal.show();
+
+  // 先移除舊的 listener（保證只會有一個）
+  const btn = document.getElementById('confirmUpdateBtn');
+  if (confirmUpdateBtnHandler) {
+    btn.removeEventListener('click', confirmUpdateBtnHandler);
+  }
+
+  // 新的 handler，每次都用同一個參考
+  confirmUpdateBtnHandler = function doConfirm() {
+    confirmModal.hide();
+    btn.removeEventListener('click', confirmUpdateBtnHandler);
+
+    confirmModalEl.addEventListener('hidden.bs.modal', function handleHidden() {
+      confirmModalEl.removeEventListener('hidden.bs.modal', handleHidden);
+
+      // 開 loading...
+      const loadingModalEl = document.getElementById('loadingModal');
+      const loadingModal = bootstrap.Modal.getOrCreateInstance(loadingModalEl);
+      loadingModal.show();
+
+      submitFn(function onComplete(message) {
+        loadingModal.hide();
+        loadingModalEl.addEventListener('hidden.bs.modal', function handleLoadingHidden() {
+          loadingModalEl.removeEventListener('hidden.bs.modal', handleLoadingHidden);
+          if (message) {
+            document.getElementById('updateCompleteMessage').innerText = message;
+          }
+          const completeModalEl = document.getElementById('updateCompleteModal');
+          const completeModal = bootstrap.Modal.getOrCreateInstance(completeModalEl);
+          completeModal.show();
+        });
+      });
+    });
+  };
+  btn.addEventListener('click', confirmUpdateBtnHandler);
+}
+
+// 呼叫「確定提交？」的動畫對話框(沒有請稍後)
+function confirmAndSubmitNoLoading(submitFn) {
+  const confirmModalEl = document.getElementById('confirmUpdateModal');
+  const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalEl);
+  confirmModal.show();
+
+  // 保證不重複綁定
+  const btn = document.getElementById('confirmUpdateBtn');
+  if (confirmUpdateBtnHandler_NoLoading) {
+    btn.removeEventListener('click', confirmUpdateBtnHandler_NoLoading);
+  }
+
+  confirmUpdateBtnHandler_NoLoading = function doConfirm() {
+    confirmModal.hide();
+    btn.removeEventListener('click', confirmUpdateBtnHandler_NoLoading);
+
+    confirmModalEl.addEventListener('hidden.bs.modal', function handleHidden() {
+      confirmModalEl.removeEventListener('hidden.bs.modal', handleHidden);
+
+      // 直接執行 submitFn，onComplete 直接顯示完成modal
+      submitFn(function onComplete(message) {
+        if (message) {
+          document.getElementById('updateCompleteMessage').innerText = message;
+        }
+        const completeModalEl = document.getElementById('updateCompleteModal');
+        const completeModal = bootstrap.Modal.getOrCreateInstance(completeModalEl);
+        completeModal.show();
+      });
+    });
+  };
+  btn.addEventListener('click', confirmUpdateBtnHandler_NoLoading);
+}
+
+// 自動檢查有無訊息，有則自動跳出訊息modal
+function checkAndShowMsgOnLoad() {
+  const nameEl = document.getElementById("name");
+  if (!nameEl) return;
+    const name = nameEl.innerText.trim();
+    if (!accountData || accountData.length === 0) return;
+    const userObj = accountData.find(obj => obj["姓名"] === name);
+    if (!userObj) return;
+    const unit = userObj["單位名稱"] || "";
+    const msg = userObj["訊息通知"] || "";
+
+    // ⭐ 新增：統一控制紅點
+    const shouldShow = shouldShowNotification(userObj);
+    setNotifyDot(shouldShow);
+
+    // === 🏢 一般單位：沿用原本邏輯 ===
+    if (unit !== "衛生局") {
+      if (msg && msg !== "（無訊息）") {
+
+        // ✔ 使用正確 ID
+        const msgEl = document.getElementById("msgContent_general");
+        const modalEl = document.getElementById("msgModal_general");
+
+        if (msgEl && modalEl) {
+          msgEl.innerText = msg;
+          const msgModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          msgModal.show();
+        }
+      }
+      return;
+    }
+    // === 🏛️ 衛生局邏輯 ===
+    // 1️⃣ 先更新銷案訊息區塊（即使沒有也顯示「（無訊息）」）
+    document.getElementById("msgContent_bureau").innerText =
+      msg && msg !== "（無訊息）" ? msg : "（無訊息）";
+
+    // 2️⃣ 用靜默模式預先判斷是否有未啟用/未審核題目
+    const { hasUnactivated, hasUnreviewed } = renderBureauQuestionBlocks(true);
+
+    // 3️⃣ 三區塊判斷
+    const hasDisposalMsg = !!(msg && msg !== "（無訊息）");
+
+    // 若任一區有內容 → 顯示模塊
+    if (hasDisposalMsg || hasUnactivated || hasUnreviewed) {
+      // ✅ 再渲染正式內容
+      renderBureauQuestionBlocks(false);
+
+      // ✅ 開啟通知模塊
+      const modalEl = document.getElementById("msgModal_bureau");
+      const msgModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      msgModal.show();
+    }
+}
+
+// 取得目前登入使用者的單位名稱
+function getCurrentUserUnit() {
+  const name = document.getElementById("name").innerText.trim();
+  const userObj = accountData.find(obj => obj["姓名"] === name);
+  return userObj ? userObj["單位名稱"] : "";
+}
+
+// 依單位（衛生局或一般）開啟對應的訊息通知模塊
+function openMsgModal(msgContent) {
+  const unit = getCurrentUserUnit();
+  const isBureau = unit === "衛生局";
+  const modalId = isBureau ? "msgModal_bureau" : "msgModal_general";
+  const contentId = isBureau ? "msgContent_bureau" : "msgContent_general";
+
+  document.getElementById(contentId).innerText = msgContent || "（無訊息）";
+  const modalEl = document.getElementById(modalId);
+  const msgModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  msgModal.show();
+}
+
+// 🔹 手動點擊通知按鈕時開啟訊息模塊（若無訊息則顯示「無訊息」）
+function showUserMsg() {
+  const name = document.getElementById("name").innerText.trim();
+  const userObj = accountData.find(obj => obj["姓名"] === name);
+  const msg = userObj && userObj["訊息通知"] ? userObj["訊息通知"] : "（無訊息）";
+  openMsgModal(msg);
+}
+
+//清除內容
+  function clearMsgContent() {
+  if (!confirm("確定要清除所有訊息通知嗎？")) return;
+
+  const name = document.getElementById("name").innerText.trim();
+  const userObj = accountData.find(obj => obj["姓名"] === name);
+
+  // 前端快取與畫面清空
+  if (userObj) userObj["訊息通知"] = "";
+  ["msgContent_general", "msgContent_bureau"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.innerText = "（無訊息）";
+  });
+
+  refreshNotification();
+
+  // 後端異步清空
+  google.script.run.clearUserMsgContent(name);
+}
+
+// 🔹 關閉所有訊息通知模塊（含衛生局與一般版）
+  function closeMsgModal() {
+    ["msgModal_general", "msgModal_bureau"].forEach(id => {
+      const el = document.getElementById(id);
+      const m = bootstrap.Modal.getInstance(el);
+      if (m) {
+        // 1. 在隱藏前，強迫目前的焦點元素「失焦」
+        if (el.contains(document.activeElement)) {
+          document.activeElement.blur(); 
+        }
+        // 2. 執行隱藏
+        m.hide();
+      }
+    });
+  }
+
+  // 🔹 產生衛生局專用通知模塊內容
+  //    silentMode = true → 只計算是否有資料，不顯示表格內容
+  //    silentMode = false → 實際渲染三個區塊內容
+  function renderBureauQuestionBlocks(silentMode = false) {
+    if (!cachedDisposalData || !cachedDisposalData.questions) {
+      return { hasUnactivated: false, hasUnreviewed: false };
+    }
+
+    const qData = cachedDisposalData.questions;
+    if (qData.length <= 1) return { hasUnactivated: false, hasUnreviewed: false };
+
+    const headers = qData[0];
+    const rows = qData.slice(1);
+
+    const idxSerial = headers.indexOf("序號");
+    const idxTitle  = headers.indexOf("題目");
+    const idxOwner  = headers.indexOf("命題者");
+    const idxStatus = headers.indexOf("啟用狀態");
+    const idxReview = headers.indexOf("審核資訊");
+
+    const currentName = document.getElementById("name").innerText.trim();
+
+    // 🟠 第二區：我尚未啟用的題目（自己出的）
+    const unactivatedRows = rows.filter(r => {
+      const status = String(r[idxStatus] || "");
+      const owner  = String(r[idxOwner] || "");
+      return status !== "✅ 啟用" && owner === currentName;
+    });
+
+    // 🟢 第三區：我尚未審核的題目（別人出的、自己未審）
+    const unreviewedRows = rows.filter(r => {
+      const status = String(r[idxStatus] || "");
+      const owner  = String(r[idxOwner] || "");
+      if (status === "✅ 啟用" || owner === currentName) return false;
+
+      let info = {};
+      try { info = JSON.parse(r[idxReview] || "{}"); } catch(e) {}
+      const reviewers = info.reviewers || {};
+      const reviewed = reviewers[currentName]?.decision;
+      return !reviewed; // 尚未審核
+    });
+
+    // === 若只用來判斷是否有資料，不需實際渲染 ===
+    if (silentMode) {
+      return {
+        hasUnactivated: unactivatedRows.length > 0,
+        hasUnreviewed: unreviewedRows.length > 0
+      };
+    }
+
+    // === 🧩 實際渲染內容 ===
+    // === 區塊二：我尚未啟用的題目 ===
+    const unactivatedHTML = unactivatedRows.length === 0
+      ? `<div class="text-muted text-center">(尚無資料)</div>`
+      : `
+        <table class="table table-bordered table-sm align-middle mb-0 bg-white"
+              style="table-layout:fixed; width:100%;">
+          <colgroup>
+            <col style="width:80%;">
+            <col style="width:20%;">
+          </colgroup>
+          <thead class="table-light text-center"> <!-- ✅ 標題置中 -->
+            <tr><th>題目</th><th>啟用狀態</th></tr>
+          </thead>
+          <tbody>
+            ${unactivatedRows.map(r => `
+              <tr>
+                <td class="text-start text-primary qb-text-start"
+                    style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                    onclick="openQuestionViewModal(${r[idxSerial]});">
+                  ${escapeHTML(r[idxTitle] || "(無題目)")}
+                </td>
+                <td class="text-center">${r[idxStatus] || ""}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        <div class="text-end text-secondary small mt-2">共 ${unactivatedRows.length} 題</div>`;
+
+        document.getElementById("bureauUnactivatedArea").innerHTML = unactivatedHTML;
+
+      // === 區塊三：我尚未審核的題目 ===
+      const unreviewedHTML = unreviewedRows.length === 0
+        ? `<div class="text-muted text-center">(尚無資料)</div>`
+        : `
+          <table class="table table-bordered table-sm align-middle mb-0 bg-white"
+                style="table-layout:fixed; width:100%;">
+            <colgroup>
+              <col style="width:80%;">
+              <col style="width:20%;">
+            </colgroup>
+            <thead class="table-light text-center">
+              <tr><th>題目</th><th>命題者</th></tr>
+            </thead>
+            <tbody>
+              ${unreviewedRows.map(r => `
+                <tr>
+                  <td class="text-start text-primary qb-text-start"
+                      style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                      onclick="openQuestionViewModal(${r[idxSerial]});">
+                    ${escapeHTML(r[idxTitle] || "(無題目)")}
+                  </td>
+                  <td class="text-center">${r[idxOwner] || ""}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+          <div class="text-end text-secondary small mt-2">共 ${unreviewedRows.length} 題</div>`;
+
+        document.getElementById("bureauUnreviewedArea").innerHTML = unreviewedHTML;
+
+    return {
+      hasUnactivated: unactivatedRows.length > 0,
+      hasUnreviewed: unreviewedRows.length > 0
+    };
+  }
+//============================================================↑↑↑↑↑↑↑訊息處理↑↑↑↑↑↑↑============================================================
+
+//============================================================↓↓↓↓↓↓↓通知紅點處理↓↓↓↓↓↓↓============================================================
+function shouldShowNotification(userObj) {
+  if (!userObj) return false;
+
+  const unit = userObj["單位名稱"] || "";
+  const msg = userObj["訊息通知"] || "";
+  const hasMsg = msg && msg !== "（無訊息）";
+
+  if (unit !== "衛生局") {
+    return !!hasMsg;
+  }
+
+  const { hasUnactivated, hasUnreviewed } = renderBureauQuestionBlocks(true);
+
+  return hasMsg || hasUnactivated || hasUnreviewed;
+}
+
+function setNotifyDot(show) {
+  const dot = document.querySelector(".notify-dot");
+  if (!dot) return;
+
+  dot.style.display = show ? "inline-block" : "none";
+}
+
+function refreshNotification() {
+  const nameEl = document.getElementById("name");
+  if (!nameEl) return;
+
+  const name = nameEl.innerText.trim();
+  const userObj = accountData.find(obj => obj["姓名"] === name);
+  if (!userObj) return;
+
+  const shouldShow = shouldShowNotification(userObj);
+  setNotifyDot(shouldShow);
+}
+//============================================================↑↑↑↑↑↑↑通知紅點處理↑↑↑↑↑↑↑============================================================
+
+
+//============================================================↓↓↓↓↓↓↓媒體及檔案處理↓↓↓↓↓↓↓============================================================
+
+//============================================================↑↑↑↑↑↑↑媒體及檔案處理↑↑↑↑↑↑↑============================================================
+</script>  
