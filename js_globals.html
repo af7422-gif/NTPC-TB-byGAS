@@ -1,0 +1,957 @@
+<script>
+/**
+全域變數
+*/
+
+//============↓↓↓↓↓↓↓銷案清單目前顯示的資料筆數 (預設 100)↓↓↓↓↓↓↓============
+let currentLimit = 100; 
+//============↑↑↑↑↑↑↑銷案清單目前顯示的資料筆數 (預設 100)↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓暫存目前正在貼上圖片的表格列與圖片資料↓↓↓↓↓↓↓============
+let currentPasteRow = null;
+let tempBase64Image = "";
+//============↑↑↑↑↑↑↑暫存目前正在貼上圖片的表格列與圖片資料↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓記錄目前銷案清單排序的欄位與方向↓↓↓↓↓↓↓============
+let currentSortCol = null;
+let currentSortDir = 'asc';
+//============↑↑↑↑↑↑↑記錄目前銷案清單排序的欄位與方向↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓保存最近一次開modal的select↓↓↓↓↓↓↓============
+let lastCategorySelectElem = null; // 
+//============↑↑↑↑↑↑↑保存最近一次開modal的select↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓控制「重整資料」按鈕的防連點與超時機制↓↓↓↓↓↓↓============
+let disposalRequestActive = false;
+let timeoutId = null;
+//============↑↑↑↑↑↑↑控制「重整資料」按鈕的防連點與超時機制↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓防止確認彈窗重複綁定事件的控制變數↓↓↓↓↓↓↓============
+// 定義全域只會有一個 listener
+let confirmUpdateBtnHandler = null;
+//============↑↑↑↑↑↑↑防止確認彈窗重複綁定事件的控制變數↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓拖曳缺失項↓↓↓↓↓↓↓============
+const sortableMap = {}; 
+//============↑↑↑↑↑↑↑拖曳缺失項↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓SVG圖示庫↓↓↓↓↓↓↓============
+const LUCIDE_ICONS = {
+  search: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  info: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  camera: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
+  trash: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
+};
+//============↑↑↑↑↑↑↑SVG圖示庫↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓狀態碼對照表↓↓↓↓↓↓↓============
+const STATUS_MAP = {
+  "not_processed": {
+    label: "尚未處理",
+    icon: "help-circle",
+    color: "#ff9800",
+    legacy: "❓ 尚未處理",
+    class: "modal-status-notprocessed"
+  },
+  "pending": {
+    label: "處理中",
+    icon: "clock-4",
+    color: "#8e24aa",
+    legacy: "⌛ 處理中",
+    class: "modal-status-processing"
+  },
+  "patch": {
+    label: "補件",
+    icon: "refresh-cw",
+    color: "#1e88e5",
+    legacy: "🔄 補件",
+    class: "modal-status-patch"
+  },
+  "approved": {
+    label: "通過",
+    icon: "check-circle",
+    color: "#43a047",
+    legacy: "✅ 通過",
+    class: "modal-status-approved"
+  },
+  "rejected": {
+    label: "退件",
+    icon: "x-circle",
+    color: "#e53935",
+    legacy: "❌ 退件",
+    class: "modal-status-reject"
+  },
+  "cancelled": {
+    label: "取消銷案",
+    icon: "corner-up-left",
+    color: "#757575",
+    legacy: "⏪ 取消銷案",
+    class: "modal-status-cancelled"
+  }
+};
+//============↑↑↑↑↑↑↑狀態碼對照表↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓氣球文本↓↓↓↓↓↓↓============
+// 一組給「完成管理」「其他完治」「其他（視同結果失落）」共用
+const GROUP_完治 = {
+  unreversible: [
+    { 
+      value: "訪視紀錄未完整", //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>未於通報後 7 個工作日完成收案</li>
+        <li>管理期間均採電訪，未註記無法家訪原因</li>
+        <li>無特殊原因，確診30個日曆天內未以家訪方式進行家戶接觸者調查及環境評估作業(如初訪為到點或電訪，家訪時需補充接觸者調查之說明)</li>
+      </ol>
+      ` 
+    },
+    {
+      value: "副作用評估未完整",//OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>用藥期間未每月維護一筆副作用評估結果(每個欄位皆須點選評估/無法評估)</li>
+        <li>服用 EMB 個案出現視力及辨色力副作用，無後續處置紀錄</li>
+      </ol>      
+      `
+    },
+
+    {
+      value: "未依規送驗GeneXpert",//OK
+      info: `<div style="padding-left: 15px">符合高風險快速分子檢測送驗對象者未進行送驗作業</div>`
+    },
+    {
+      value: "未確認初查內容", // OK
+      info: '<div style="padding-left: 15px">未有初次CXR檢查(或無相關影像學檢查記錄)</div>'
+    },
+    {
+      value: "直接列不合格項",//OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>延遲銷案：未於 30 日曆天內銷案</li>
+        <li>地段未於 3 個工作天內受理關懷員通報副作用評估及處置紀錄</li>
+        <li>初痰未完整或未每月驗痰至陰轉</li>
+      </ol>
+      `
+    }
+  ],
+  reversible: [
+    { value: "收案訪視調查表未妥(橘)", //OK
+      info: `
+      <div style="padding-left: 15px;">必填欄位未維護正確，其中可傳染期需涵蓋起訖日</div>
+      <div style="padding-left: 15px;">&nbsp;</div>
+      <div style="padding-left: 15px;">*可傳染期迄日除MDR、複查痰陽轉或X光惡化及治療滿 2 個月( 60 天)後所驗的痰培養仍為 MTBC 以外，優先以DOTS用藥 14 天為迄日</div>
+      `
+    },
+    { value: "收案訪視調查表未妥(灰)", //OK
+      info: `
+      <div style="padding-left: 15px;">「健康狀態」、「本次發病經過與接觸史」、「共病狀態及高風險行為」、「收案提供之衛教內容」及「個案活動調查」未維護正確</div>
+      <div style="padding-left: 15px;">&nbsp;</div>
+      <div style="padding-left: 15px;">*「個案活動調查」的「活動起日」除可確認明確之日期（如住院、急診等），一律填可傳染期起日</div>
+      `
+    },
+    { 
+      value: "HIV篩檢資料未完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>「是否進行 HIV 檢驗評估」未維護"HIV 檢驗日" 或 "已拒絕" 或 "已死亡</li>
+        <li>有進行檢驗者未維護檢驗結果</li>
+      </ol>
+      `
+    },
+    { 
+      value: "病理資料未維護完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>肺內或肺外之病理報告未上傳並完成「病理報告日期及結果」之維護</li>
+        <li>同時有肺內或肺外結核病理報告，若已有肺內結核證據，未維護肺外結核</li>
+      </ol>
+      `
+    },
+    { 
+      value: "肺外資料未維護完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>系統查無自動介接肺外檢體(如病理檢體等)之抹片、培養及NAAT檢驗結果，未經與醫院電話確認仍無法取得並註記於「肺外說明」欄位</li>
+        <li>有肺外檢體但未依規維護「個案初次檢查資料」相關欄位</li>
+      </ol>
+      `
+    },
+    { 
+      value: "未確認個案確診",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>疑似狀態（病審或改診斷除外）且無其他佐證資料即送銷案</li>
+        <li>初查"痰液"結果為以下任一情形（不包含合併肺外結核或肺內/外病理組織典型變化之個案）未與診療醫師確認是否排除診斷；若已完成抗結核藥物療程並以結核病銷案者，未提病例討論或無委員建議維持結核病診斷之佐證文件
+        <ul style="line-height: 2.5; list-style-type: disc;">
+          <li>NTM或MTBC陰性者（針對 114 年起通報/重開之結核病個案進行檢核）</li>
+          <li>初查陰性、NAAT陽性、培養陰性及「醫師未開藥之新案」或「重開個案」（針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+          <li>新案/重個案初查塗片陰性、NAAT陰性、培養陰性、已服藥且臨床有改善（針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+          <li>初查陰性、NAAT陰性、培養陰性針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+        </ul>
+      </li>
+      </ol>
+      `
+    },
+    { 
+      value: "複查痰檢未完整",  //OK
+      info: `
+      <div style="padding-left: 15px;">未落實追蹤複查驗痰頻率(含無法完成複查原因之紀錄)</div>
+      `
+    },
+    { 
+      value: "就醫照護資料未完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+        <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+        <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+      </ol>
+      <div style="padding-left: 15px;">&nbsp;</div>
+      <div style="padding-left: 15px;">註：
+      <ol style="line-height: 2;">
+        <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+        <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+        <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+      </ol>
+      </div>
+      `
+    },
+    { 
+      value: "治療處方不符指引",  //OK
+      info: `
+      <div style="padding-left: 15px;">非診治指引建議處方、治療期程，銷案前未送病例討論會確認是否可停止治療</div>
+      `
+    },
+    { 
+      value: "處方不符指引未即時介入",  //OK
+      info: `
+      <div style="padding-left: 15px;">處方不符診治指引未即時介入，如：HR 敏感個案 EMB 使用時間超過 100 天、加強期未使用 HERZ、治療期間用藥種類或天數不足、劑量過高或不足等</div>
+      `
+    },
+    { 
+      value: "DOTS內容維護錯誤",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>DOTS核定日維護錯誤</li>
+        <li>DOTS日誌服藥方式維護錯誤</li>
+        <li>DOTS中斷日期維護錯誤</li>
+        <li>DOTS中斷日期、"原因"維護錯誤</li>
+        <li>無法親自關懷達14天以上未依規中斷</li>
+      </ol>
+      `
+    },
+    {
+      value: "DOTS副作用評估未完整",//OK
+      info: `<div style="padding-left: 15px">未依作業頻率落實副作用(含視力及辨色力)評估結果紀錄之維護</div>`
+    },
+    { 
+      value: "接觸者匡列未完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>符合條檢者未執行可傳染期間之住院接觸者調查/檢查作業</li>
+        <li>查無接觸者調查紀錄，或接觸者匡列不完整</li>
+      </ol>
+      `
+    },
+    {
+      value: "接觸終止暴露日期誤漏",
+      info: `<div style="padding-left: 15px;">接觸者終止有效暴露日期維護錯誤或未維護</div>`
+    },
+    {
+      value: "未執行接觸者檢查",
+      info: `
+      <div style="padding-left: 15px;">指標個案轄區接觸者已完成必要之檢查且於指標個案銷案前檢查頻率符合規範，因故未完成檢查者，未維護相應之「未執行檢驗原因」欄位</div>
+      <div style="padding-left: 15px;">註：若為不合作或拒絕者，應於備註說明欄位標註警告函發文日期及文號或標註文件上傳系統</div>
+      `
+    },
+    {
+      value: "未依銷案通則銷案",
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>已加入健保品質支付專案之個案，未於「結核病健保品質支付個案管理主畫面」之「結束治療日期」及「結束治療原因」欄位完成資料維護，以作為停止治療依據</li>
+        <li>未加入健保品質支付專案或醫院個管師延遲維護健保品質支付專案停止治療資訊之個案，未以調查表（或經病例討論）確認個案可完治（停止治療），並將調查表（病例討論回復單）上傳系統</li>
+      </ol>
+      `
+    },
+    {
+      value: "銷案欄位維護錯誤",
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>銷案原因錯誤</li>
+        <li>結束治療日維護錯誤</li>
+      </ol>
+      `
+    },
+    {
+      value: "逾銷案期限前十日送件",
+      info: `
+      <div style="padding-left: 15px;">距銷案時效期限 10 個日曆天內才送局銷案</div>
+      `
+    },
+    {
+      value: "未於期限內補正資料",
+      info: `
+      <div style="padding-left: 15px;">未於 5 個工作天內依指示須補正不合格情境，並再次補送件者</div>
+      `
+    },
+    {
+      value: "未依應修正內容修正",
+      info: `
+      <div style="padding-left: 15px;">因補件再次送銷案，但未依指示補正或未於備註說明無須補正之原因</div>
+      `
+    }
+  ]
+};
+// 一組給「排除」三種共用
+const GROUP_排除 = {
+  unreversible: [
+    { 
+      value: "訪視紀錄未完整", //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>未於通報後 7 個工作日完成收案</li>
+        <li>未以月為單位並每月完成一筆地段訪視</li>
+      </ol>
+      ` 
+    },
+    {
+      value: "副作用評估未完整",//OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>用藥期間未每月維護一筆副作用評估結果(每個欄位皆須點選評估/無法評估)</li>
+        <li>服用 EMB 個案出現視力及辨色力副作用，無後續處置紀錄</li>
+      </ol>      
+      `
+    },
+    {
+      value: "未確認初查內容",//OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>未有初次CXR檢查（或無相關影像學檢查記錄）</li>
+        <li>各類檢查結果之菌種鑑定種類出現MTBC</li>
+      </ol>
+`
+    },
+    {
+      value: "DOTS副作用評估未完整",//OK
+      info: `<div style="padding-left: 15px">未依作業頻率落實副作用(含視力及辨色力)評估結果紀錄之維護</div>`
+    },
+    {
+      value: "直接列不合格項",//OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>延遲銷案：未於 90 日曆天內銷案</li>
+        <li>地段未於 3 個工作天內受理關懷員通報副作用評估及處置紀錄</li>
+        <li>初痰未完整</li>
+      </ol>
+      `
+    }
+  ],
+  reversible: [
+    { value: "收案訪視調查表未妥(橘)", //OK
+      info: `
+      <div style="padding-left: 15px;">必填欄位未維護正確，其中可傳染期需涵蓋起訖日</div>
+      <div style="padding-left: 15px;">&nbsp;</div>
+      <div style="padding-left: 15px;">*可傳染期迄日除MDR、複查痰陽轉或X光惡化及治療滿 2 個月( 60 天)後所驗的痰培養仍為 MTBC 以外，優先以DOTS用藥 14 天為迄日</div>
+      `
+    },
+    { value: "收案訪視調查表未妥(灰)", //OK
+      info: `
+      <div style="padding-left: 15px;">「健康狀態」、「本次發病經過與接觸史」、「共病狀態及高風險行為」、「收案提供之衛教內容」及「個案活動調查」未維護正確</div>
+      <div style="padding-left: 15px;">&nbsp;</div>
+      <div style="padding-left: 15px;">*「個案活動調查」的「活動起日」除可確認明確之日期（如住院、急診等），一律填可傳染期起日</div>
+      `
+    },
+    { 
+      value: "HIV篩檢資料未完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>「是否進行 HIV 檢驗評估」未維護"HIV 檢驗日" 或 "已拒絕" 或 "已死亡</li>
+        <li>有進行檢驗者未維護檢驗結果</li>
+      </ol>
+      `
+    },
+    { 
+      value: "病理資料未維護完整",  //OK
+      info: `
+      <div style="padding-left: 15px;">肺內或肺外之病理報告未上傳並完成「病理報告日期及結果」之維護</div>
+      `
+    },
+    { 
+      value: "肺外資料未維護完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>系統查無自動介接肺外檢體(如病理檢體等)之抹片、培養及NAAT檢驗結果，未經與醫院電話確認仍無法取得並註記於「肺外說明」欄位</li>
+        <li>有肺外檢體但未依規維護「個案初次檢查資料」相關欄位</li>
+      </ol>
+      `
+    },
+    { 
+      value: "就醫照護資料未完整",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+        <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+        <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+      </ol>
+      <div style="padding-left: 15px;">&nbsp;</div>
+      <div style="padding-left: 15px;">註：
+      <ol style="line-height: 2;">
+        <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+        <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+        <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+      </ol>
+      </div>
+      `
+    },
+    { 
+      value: "DOTS內容維護錯誤",  //OK
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>DOTS核定日維護錯誤</li>
+        <li>DOTS日誌服藥方式維護錯誤</li>
+        <li>DOTS中斷日期維護錯誤</li>
+        <li>DOTS中斷日期、"原因"維護錯誤</li>
+        <li>無法親自關懷達14天以上未依規中斷</li>
+      </ol>
+      `
+    },
+    {
+      value: "DOTS副作用評估未完整",//OK
+      info: `<div style="padding-left: 15px">未依作業頻率落實副作用(含視力及辨色力)評估結果紀錄之維護</div>`
+    },
+    {
+      value: "未依銷案通則銷案",
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>已加入健保品質支付專案之個案，未於「結核病健保品質支付個案管理主畫面」之「結束治療日期」及「結束治療原因」欄位完成資料維護，以作為停止治療依據</li>
+        <li>未加入健保品質支付專案或醫院個管師延遲維護健保品質支付專案停止治療資訊之個案，未以調查表（或經病例討論）確認個案可排除診斷，並將調查表（病例討論回復單）上傳系統</li>
+      </ol>
+      `
+    },
+    {
+      value: "銷案欄位維護錯誤",
+      info: `
+      <ol style="line-height: 2.5;">
+        <li>銷案原因錯誤</li>
+        <li>結束治療日維護錯誤</li>
+      </ol>
+      `
+    },
+    {
+      value: "逾銷案期限前十日送件",
+      info: `
+      <div style="padding-left: 15px;">距銷案時效期限 10 個日曆天內才送局銷案</div>
+      `
+    },
+    {
+      value: "未於期限內補正資料",
+      info: `
+      <div style="padding-left: 15px;">未於 5 個工作天內依指示須補正不合格情境，並再次補送件者</div>
+      `
+    },
+    {
+      value: "未依應修正內容修正",
+      info: `
+      <div style="padding-left: 15px;">因補件再次送銷案，但未依指示補正或未於備註說明無須補正之原因</div>
+      `
+    }
+  ]
+};
+
+const REVIEW_OPTIONS = {
+  "完成管理": GROUP_完治,
+  "其他完治": GROUP_完治,
+  "其他（視同結果失落）": GROUP_完治,
+  "死亡": {
+    unreversible: [
+      { 
+        value: "訪視紀錄未完整", //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>未於通報後 7 個工作日完成收案</li>
+          <li>管理期間均採電訪，未註記無法家訪原因</li>
+          <li>無特殊原因，確診30個日曆天內未以家訪方式進行家戶接觸者調查及環境評估作業(如初訪為到點或電訪，家訪時需補充接觸者調查之說明)</li>
+        </ol>
+        ` 
+      },
+      {
+        value: "副作用評估未完整",//OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>用藥期間未每月維護一筆副作用評估結果(每個欄位皆須點選評估/無法評估)</li>
+          <li>服用 EMB 個案出現視力及辨色力副作用，無後續處置紀錄</li>
+        </ol>      
+        `
+      },
+      {
+        value: "未確認初查內容",//OK
+        info:  `<div style="padding-left: 15px">未有初次CXR檢查（或無相關影像學檢查記錄）</div>`
+      },
+      {
+        value: "未依規送驗GeneXpert",//OK
+        info: `<div style="padding-left: 15px">符合高風險快速分子檢測送驗對象者未進行送驗作業</div>`
+      },
+      {
+        value: "DOTS副作用評估未完整",//OK
+        info: `<div style="padding-left: 15px">未依作業頻率落實副作用(含視力及辨色力)評估結果紀錄之維護</div>`
+      },
+      {
+        value: "直接列不合格項",//OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>延遲銷案：未於 90 日曆天內銷案</li>
+          <li>地段未於 3 個工作天內受理關懷員通報副作用評估及處置紀錄</li>
+          <li>初痰未完整或未每月驗痰至陰轉</li>
+        </ol>
+        `
+      }
+    ],
+    reversible: [
+      { value: "收案訪視調查表未妥(橘)", //OK
+        info: `
+        <div style="padding-left: 15px;">必填欄位未維護正確，其中可傳染期需涵蓋起訖日</div>
+        <div style="padding-left: 15px;">&nbsp;</div>
+        <div style="padding-left: 15px;">*可傳染期迄日除MDR、複查痰陽轉或X光惡化及治療滿 2 個月( 60 天)後所驗的痰培養仍為 MTBC 以外，優先以DOTS用藥 14 天為迄日</div>
+        `
+      },
+      { value: "收案訪視調查表未妥(灰)", //OK
+        info: `
+        <div style="padding-left: 15px;">「健康狀態」、「本次發病經過與接觸史」、「共病狀態及高風險行為」、「收案提供之衛教內容」及「個案活動調查」未維護正確</div>
+        <div style="padding-left: 15px;">&nbsp;</div>
+        <div style="padding-left: 15px;">*「個案活動調查」的「活動起日」除可確認明確之日期（如住院、急診等），一律填可傳染期起日</div>
+        `
+      },
+      { 
+        value: "HIV篩檢資料未完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>「是否進行 HIV 檢驗評估」未維護"HIV 檢驗日" 或 "已拒絕" 或 "已死亡</li>
+          <li>有進行檢驗者未維護檢驗結果</li>
+        </ol>
+        `
+      },
+      { 
+        value: "病理資料未維護完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>肺內或肺外之病理報告未上傳並完成「病理報告日期及結果」之維護</li>
+          <li>同時有肺內或肺外結核病理報告，若已有肺內結核證據，未維護肺外結核</li>
+        </ol>
+        `
+      },
+      { 
+        value: "肺外資料未維護完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>系統查無自動介接肺外檢體(如病理檢體等)之抹片、培養及NAAT檢驗結果，未經與醫院電話確認仍無法取得並註記於「肺外說明」欄位</li>
+          <li>有肺外檢體但未依規維護「個案初次檢查資料」相關欄位</li>
+        </ol>
+        `
+      },
+      { 
+        value: "未確認個案確診",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>疑似狀態（病審或改診斷除外）且無其他佐證資料即送銷案</li>
+          <li>初查"痰液"結果為以下任一情形（不包含合併肺外結核或肺內/外病理組織典型變化之個案）未與診療醫師確認是否排除診斷；若已完成抗結核藥物療程並以結核病銷案者，未提病例討論或無委員建議維持結核病診斷之佐證文件
+          <ul style="line-height: 2.5; list-style-type: disc;">
+            <li>NTM或MTBC陰性者（針對 114 年起通報/重開之結核病個案進行檢核）</li>
+            <li>初查陰性、NAAT陽性、培養陰性及「醫師未開藥之新案」或「重開個案」（針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+            <li>新案/重個案初查塗片陰性、NAAT陰性、培養陰性、已服藥且臨床有改善（針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+            <li>初查陰性、NAAT陰性、培養陰性針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+          </ul>
+        </li>
+        </ol>
+        `
+      },
+      { 
+        value: "複查痰檢未完整",  //OK
+        info: `
+        <div style="padding-left: 15px;">未落實追蹤複查驗痰頻率(含無法完成複查原因之紀錄)</div>
+        `
+      },
+      { 
+        value: "就醫照護資料未完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+          <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+          <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+        </ol>
+        <div style="padding-left: 15px;">&nbsp;</div>
+        <div style="padding-left: 15px;">註：
+        <ol style="line-height: 2;">
+          <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+          <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+          <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+        </ol>
+        </div>
+        `
+      },
+      { 
+        value: "DOTS內容維護錯誤",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>DOTS核定日維護錯誤</li>
+          <li>DOTS日誌服藥方式維護錯誤</li>
+          <li>DOTS中斷日期維護錯誤</li>
+          <li>DOTS中斷日期、"原因"維護錯誤</li>
+          <li>無法親自關懷達14天以上未依規中斷</li>
+        </ol>
+        `
+      },
+      {
+        value: "DOTS副作用評估未完整",//OK
+        info: `<div style="padding-left: 15px">未依作業頻率落實副作用(含視力及辨色力)評估結果紀錄之維護</div>`
+      },
+      { 
+        value: "接觸者匡列未完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>符合條檢者未執行可傳染期間之住院接觸者調查/檢查作業</li>
+          <li>查無接觸者調查紀錄，或接觸者匡列不完整</li>
+        </ol>
+        `
+      },
+      {
+        value: "接觸終止暴露日期誤漏",
+        info: `<div style="padding-left: 15px;">接觸者終止有效暴露日期維護錯誤或未維護</div>`
+      },
+      {
+        value: "未執行接觸者檢查",
+        info: `
+        <div style="padding-left: 15px;">指標個案轄區接觸者已完成必要之檢查且於指標個案銷案前檢查頻率符合規範，因故未完成檢查者，未維護相應之「未執行檢驗原因」欄位</div>
+        <div style="padding-left: 15px;">註：若為不合作或拒絕者，應於備註說明欄位標註警告函發文日期及文號或標註文件上傳系統</div>
+        `
+      },
+      {
+        value: "死亡資料未登錄",
+        info: `<div style="padding-left: 15px;">系統未有「衛生福利部死因登錄系統」死亡原因資料或未上傳死亡證明書</div>`
+      },
+      {
+        value: "銷案欄位維護錯誤",
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>銷案原因錯誤</li>
+          <li>結束治療日維護錯誤</li>
+        </ol>
+        `
+      },
+      {
+        value: "逾銷案期限前十日送件",
+        info: `
+        <div style="padding-left: 15px;">距銷案時效期限 10 個日曆天內才送局銷案</div>
+        `
+      },
+      {
+        value: "未於期限內補正資料",
+        info: `
+        <div style="padding-left: 15px;">未於 5 個工作天內依指示須補正不合格情境，並再次補送件者</div>
+        `
+      },
+      {
+        value: "未依應修正內容修正",
+        info: `
+        <div style="padding-left: 15px;">因補件再次送銷案，但未依指示補正或未於備註說明無須補正之原因</div>
+        `
+      }
+    ]
+  },
+  "轉出": {
+    unreversible: [
+      { 
+        value: "訪視紀錄未完整", //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>未於通報後 7 個工作日完成收案</li>
+          <li>管理期間均採電訪，未註記無法家訪原因</li>
+          <li>無特殊原因，確診30個日曆天內未以家訪方式進行家戶接觸者調查及環境評估作業(如初訪為到點或電訪，家訪時需補充接觸者調查之說明)</li>
+        </ol>
+        ` 
+      },
+      {
+        value: "副作用評估未完整",//OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>用藥期間未每月維護一筆副作用評估結果(每個欄位皆須點選評估/無法評估)</li>
+          <li>服用 EMB 個案出現視力及辨色力副作用，無後續處置紀錄</li>
+        </ol>      
+        `
+      },
+      {
+        value: "未確認初查內容",//OK
+        info:  `<div style="padding-left: 15px">未有初次CXR檢查（或無相關影像學檢查記錄）</div>`
+      },
+      {
+        value: "未依規送驗GeneXpert",//OK
+        info: `<div style="padding-left: 15px">符合高風險快速分子檢測送驗對象者未進行送驗作業</div>`
+      },
+      {
+        value: "DOTS副作用評估未完整",//OK
+        info: `<div style="padding-left: 15px">未依作業頻率落實副作用(含視力及辨色力)評估結果紀錄之維護</div>`
+      },
+      {
+        value: "直接列不合格項",//OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>延遲銷案：未於 90 日曆天內銷案</li>
+          <li>地段未於 3 個工作天內受理關懷員通報副作用評估及處置紀錄</li>
+          <li>初痰未完整或未每月驗痰至陰轉</li>
+        </ol>
+        `
+      }
+    ],
+    reversible: [
+      { value: "收案訪視調查表未妥(橘)", //OK
+        info: `
+        <div style="padding-left: 15px;">必填欄位未維護正確，其中可傳染期需涵蓋起訖日</div>
+        <div style="padding-left: 15px;">&nbsp;</div>
+        <div style="padding-left: 15px;">*可傳染期迄日除MDR、複查痰陽轉或X光惡化及治療滿 2 個月( 60 天)後所驗的痰培養仍為 MTBC 以外，優先以DOTS用藥 14 天為迄日</div>
+        `
+      },
+      { value: "收案訪視調查表未妥(灰)", //OK
+        info: `
+        <div style="padding-left: 15px;">「健康狀態」、「本次發病經過與接觸史」、「共病狀態及高風險行為」、「收案提供之衛教內容」及「個案活動調查」未維護正確</div>
+        <div style="padding-left: 15px;">&nbsp;</div>
+        <div style="padding-left: 15px;">*「個案活動調查」的「活動起日」除可確認明確之日期（如住院、急診等），一律填可傳染期起日</div>
+        `
+      },
+      { 
+        value: "HIV篩檢資料未完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>「是否進行 HIV 檢驗評估」未維護"HIV 檢驗日" 或 "已拒絕" 或 "已死亡</li>
+          <li>有進行檢驗者未維護檢驗結果</li>
+        </ol>
+        `
+      },
+      { 
+        value: "病理資料未維護完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>肺內或肺外之病理報告未上傳並完成「病理報告日期及結果」之維護</li>
+          <li>同時有肺內或肺外結核病理報告，若已有肺內結核證據，未維護肺外結核</li>
+        </ol>
+        `
+      },
+      { 
+        value: "肺外資料未維護完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>系統查無自動介接肺外檢體(如病理檢體等)之抹片、培養及NAAT檢驗結果，未經與醫院電話確認仍無法取得並註記於「肺外說明」欄位</li>
+          <li>有肺外檢體但未依規維護「個案初次檢查資料」相關欄位</li>
+        </ol>
+        `
+      },
+      { 
+        value: "未確認個案確診",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>疑似狀態（病審或改診斷除外）且無其他佐證資料即送銷案</li>
+          <li>初查"痰液"結果為以下任一情形（不包含合併肺外結核或肺內/外病理組織典型變化之個案）未與診療醫師確認是否排除診斷；若已完成抗結核藥物療程並以結核病銷案者，未提病例討論或無委員建議維持結核病診斷之佐證文件
+          <ul style="line-height: 2.5; list-style-type: disc;">
+            <li>NTM或MTBC陰性者（針對 114 年起通報/重開之結核病個案進行檢核）</li>
+            <li>初查陰性、NAAT陽性、培養陰性及「醫師未開藥之新案」或「重開個案」（針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+            <li>新案/重個案初查塗片陰性、NAAT陰性、培養陰性、已服藥且臨床有改善（針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+            <li>初查陰性、NAAT陰性、培養陰性針對 114 年 3 月 1 日起通報/重開之結核病個案進行檢核）</li>
+          </ul>
+        </li>
+        </ol>
+        `
+      },
+      { 
+        value: "複查痰檢未完整",  //OK
+        info: `
+        <div style="padding-left: 15px;">未落實追蹤複查驗痰頻率(含無法完成複查原因之紀錄)</div>
+        `
+      },
+      { 
+        value: "就醫照護資料未完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+          <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+          <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+        </ol>
+        <div style="padding-left: 15px;">&nbsp;</div>
+        <div style="padding-left: 15px;">註：
+        <ol style="line-height: 2;">
+          <li>重複 2 筆(含以上)相同日期與處方之就醫日誌紀錄</li>
+          <li>無系統介接時，就醫日誌未完整記錄用藥種類、劑量或領藥天數</li>
+          <li>未將境外治療之給藥紀錄維護於就醫照護日誌</li>
+        </ol>
+        </div>
+        `
+      },
+      { 
+        value: "DOTS內容維護錯誤",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>DOTS核定日維護錯誤</li>
+          <li>DOTS日誌服藥方式維護錯誤</li>
+          <li>DOTS中斷日期維護錯誤</li>
+          <li>DOTS中斷日期、"原因"維護錯誤</li>
+          <li>無法親自關懷達14天以上未依規中斷</li>
+        </ol>
+        `
+      },
+      { 
+        value: "接觸者匡列未完整",  //OK
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>符合條檢者未執行可傳染期間之住院接觸者調查/檢查作業</li>
+          <li>查無接觸者調查紀錄，或接觸者匡列不完整</li>
+        </ol>
+        `
+      },
+      {
+        value: "接觸終止暴露日期誤漏",
+        info: `<div style="padding-left: 15px;">接觸者終止有效暴露日期維護錯誤或未維護</div>`
+      },
+      {
+        value: "未執行接觸者檢查",
+        info: `
+        <div style="padding-left: 15px;">指標個案轄區接觸者已完成必要之檢查且於指標個案銷案前檢查頻率符合規範，因故未完成檢查者，未維護相應之「未執行檢驗原因」欄位</div>
+        <div style="padding-left: 15px;">註：若為不合作或拒絕者，應於備註說明欄位標註警告函發文日期及文號或標註文件上傳系統</div>
+        `
+      },
+      {
+        value: "未完成跨國轉介作業",
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>未上傳移民署出入境查詢出境畫面、或未以"跨國轉介及出境憑證"之類別上傳</li>
+          <li>本國人如欲轉出銷案，未上傳移居他國一年以上之證明文件</li>
+        </ol>
+        `
+      },
+      {
+        value: "銷案欄位維護錯誤",
+        info: `
+        <ol style="line-height: 2.5;">
+          <li>銷案原因錯誤</li>
+          <li>結束治療日維護錯誤</li>
+        </ol>
+        `
+      },
+      {
+        value: "逾銷案期限前十日送件",
+        info: `
+        <div style="padding-left: 15px;">距銷案時效期限 10 個日曆天內才送局銷案</div>
+        `
+      },
+      {
+        value: "未於期限內補正資料",
+        info: `
+        <div style="padding-left: 15px;">未於 5 個工作天內依指示須補正不合格情境，並再次補送件者</div>
+        `
+      },
+      {
+        value: "未依應修正內容修正",
+        info: `
+        <div style="padding-left: 15px;">因補件再次送銷案，但未依指示補正或未於備註說明無須補正之原因</div>
+        `
+      }
+    ]
+  },
+  "排除（醫師診療判定）": GROUP_排除,
+  "排除（NTM-MOTT）": GROUP_排除,
+  "排除（BCG）": GROUP_排除
+}
+//============↑↑↑↑↑↑↑氣球文本↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓TB/LTBI對應的銷案原因下拉選單選項↓↓↓↓↓↓↓=============
+const reasonOptions = {
+  TB: [
+    "完成管理", "其他完治", "死亡", "轉出", "排除（醫師診療判定）",
+    "排除（NTM-MOTT）", "排除（BCG）", "其他（視同結果失落）"
+  ],
+  LTBI: [
+    "完成治療", "中斷治療", "治療中死亡", "轉出"
+  ]
+};
+//============↑↑↑↑↑↑↑TB/LTBI對應的銷案原因下拉選單選項↑↑↑↑↑↑↑=============
+
+//============↓↓↓↓↓↓↓搜尋功能用的同義詞字典↓↓↓↓↓↓↓============
+const synonymDict = {
+    "病審": ["病例討論","委員"],
+    "DOT": ["直接觀察治療", "都治"],
+    "排診": ["排除診斷"],
+    "改診": ["排除診斷"],
+    "斷都": ["都治中斷"],
+    "PCR": ["NAAT"],
+    "地段": ["訪視", "公衛"],
+    "接檢": ["接觸者"]
+};
+//============↑↑↑↑↑↑↑搜尋功能用的同義詞字典↑↑↑↑↑↑↑============
+
+//============↓↓↓↓↓↓↓表單顯示規則↓↓↓↓↓↓↓============
+const UI_RULES = {
+  衛生局: {
+    group1: {
+      status: ["not_processed", "pending", "patch"],
+      rules: {
+        checkbox: "enable", //缺失項核取方塊
+        select: "enable", //缺失項類別
+        textarea: "enable", //缺失項說明
+        search: "show", //查詢缺失項
+        image: "show", //加入圖片
+        delete: "show", //刪除缺失項
+        caseMeta: "enable", //個案類型、結束治療日、銷案原因
+        addButton: "show", //添加缺失項
+        remark: "enable", //備註
+        drag: "enable" // 拖曳
+      }
+    },
+    group2: {
+      status: ["approved", "rejected", "cancelled"],
+      rules: {
+        checkbox: "disable",
+        select: "disable",
+        textarea: "disable",
+        search: "hide",
+        image: "hide",
+        delete: "hide",
+        caseMeta: "disable",
+        addButton: "hide",
+        remark: "disable",
+        drag: "disable" 
+      }
+    }
+  },
+
+  default: { // ← 原本 editor 改名
+    group1: {
+      status: ["not_processed", "pending", "patch", "approved"],
+      rules: {
+        checkbox: "disable",
+        select: "disable",
+        textarea: "disable",
+        search: "hide",
+        image: "hide",
+        delete: "hide",
+        caseMeta: "disable",
+        addButton: "hide",
+        remark: "disable",
+        drag: "disable" 
+      }
+    },
+    group2: {
+      status: ["rejected", "cancelled"],
+      rules: {
+        checkbox: "enable",
+        select: "disable",
+        textarea: "disable",
+        search: "hide",
+        image: "hide",
+        delete: "hide",
+        caseMeta: "enable",
+        addButton: "hide",
+        remark: "enable",
+        drag: "disable" 
+      }
+    }
+  }
+};
+//============↑↑↑↑↑↑↑表單顯示規則↑↑↑↑↑↑↑============
+</script>
