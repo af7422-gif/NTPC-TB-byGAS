@@ -2,48 +2,15 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-/*
-function doGet_old(e) {
-  var page = 'login', name = '', unit = '', tmpl;
-  if (e && e.parameter) {
-    page = e.parameter.page || 'login';
-    name = e.parameter.name || '';
-    unit = e.parameter.unit || '';
-  }
-
-  var isValidSession = checkLoginSession(name, unit);
-  if (page === 'main' && !isValidSession) {
-    page = 'login';
-    name = '';
-    unit = '';
-  }
-
-  switch (page) {
-    case 'main':
-      tmpl = HtmlService.createTemplateFromFile('main');
-      tmpl.name = name;
-      tmpl.unit = unit;
-      break;
-    case 'login':
-    default:
-      tmpl = HtmlService.createTemplateFromFile('login');
-      break;
-  }
-  tmpl.serviceUrl = ScriptApp.getService().getUrl();
-
-  return tmpl.evaluate().setTitle('銷案審核助手').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
- */
-
   function doGet(e) {
-    var tmpl = HtmlService.createTemplateFromFile('index');
+    var tmpl = HtmlService.createTemplateFromFile('api_index');
     tmpl.serviceUrl = ScriptApp.getService().getUrl();
 
     // 設定您要的圖示 URL，加上 '&format=png' 確保 Apps Script 正常運作
     var faviconUrl = "https://i.meee.com.tw/fBKiHSL.png"; 
 
     var ssId = SpreadsheetApp.getActiveSpreadsheet().getId();
-    if (ssId === "1xZHT-32k4-C3N4KPOKmb8nDbyMlk52p4R6ljBOLBglo") {
+    if (ssId === "1_h_z0JljrDQxwg04HrRR6rPNexTk0-VrZkdwwkCACyjcXhY2IcZNoPPG") {
       var output = tmpl.evaluate()
                       .setTitle('銷案審核助手')
                       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -51,7 +18,7 @@ function doGet_old(e) {
       return output;
     } else {
       var output = tmpl.evaluate()
-                      .setTitle('銷案審核助手TEST')
+                      .setTitle('銷案審核助手')
                       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
       output.setFaviconUrl(faviconUrl); // 設定圖示
       return output;
@@ -122,122 +89,136 @@ function getAllAccounts() {
   function getDisposalListData() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const tz = Session.getScriptTimeZone();
+    
+    // 1. 一次性取得所有工作表的資料，減少與 Sheet 的連線次數
+    // 使用 getValues() 抓取整塊資料比多次抓取單一單元格快得多
+    const sheetNames = ["帳號資訊", "銷案清單", "題庫", "答題紀錄", "編輯紀錄"];
+    const sheetsData = {};
+    sheetNames.forEach(name => {
+      const sh = ss.getSheetByName(name);
+      sheetsData[name] = sh ? sh.getDataRange().getValues() : [];
+    });
 
-    // ===== 取得帳號資訊 =====
-    const accountSheet = ss.getSheetByName("帳號資訊");
-    const accountData = accountSheet ? accountSheet.getDataRange().getValues() : [[]];
-    const accountHeaders = accountData[0] || [];
+    // ===== 處理帳號資訊 =====
+    const accountData = sheetsData["帳號資訊"];
+    let filteredAccounts = [];
+    if (accountData.length > 0) {
+      const accountHeaders = accountData[0];
+      const fieldArr = ["公務帳號", "密碼", "姓名", "單位名稱", "訊息通知", "便利貼", "審核", "合格率"];
+      const idxArr = fieldArr.map(f => accountHeaders.indexOf(f));
+      const idxExam = accountHeaders.indexOf("考試");
+      const idxLastLogin = accountHeaders.indexOf("上次登入時間");
 
-    const fieldArr = ["公務帳號", "密碼", "姓名", "單位名稱", "訊息通知", "便利貼", "審核", "合格率"];
-    const idxArr = fieldArr.map(f => accountHeaders.indexOf(f));
-    const idxExam = accountHeaders.indexOf("考試");
-    const idxLastLogin = accountHeaders.indexOf("上次登入時間");
+      // 預先過濾有效帳號，減少 map 的次數
+      for (let i = 1; i < accountData.length; i++) {
+        const row = accountData[i];
+        if (!row[idxArr[0]] || !row[idxArr[1]]) continue;
 
-    const filteredAccounts = (accountData.length > 1 ? accountData.slice(1) : [])
-      .map(row => {
         let obj = {};
-        fieldArr.forEach((f, i) => obj[f] = row[idxArr[i]]);
-
-        // 考試欄位：如果不存在就預設 TRUE
+        fieldArr.forEach((f, j) => obj[f] = row[idxArr[j]]);
         obj["考試"] = idxExam >= 0 ? row[idxExam] : "TRUE";
 
-        // 上次登入時間：統一轉成字串
         let lastLoginVal = idxLastLogin >= 0 ? row[idxLastLogin] : "";
-        if (lastLoginVal instanceof Date) {
-          obj["上次登入時間"] = Utilities.formatDate(lastLoginVal, tz, "yyyy-MM-dd HH:mm:ss");
-        } else {
-          obj["上次登入時間"] = lastLoginVal || "";
-        }
+        obj["上次登入時間"] = (lastLoginVal instanceof Date) 
+          ? Utilities.formatDate(lastLoginVal, tz, "yyyy-MM-dd HH:mm:ss") 
+          : (lastLoginVal || "");
+        
+        filteredAccounts.push(obj);
+      }
+    }
 
-        return obj;
-      })
-      .filter(acc => acc["公務帳號"] && acc["密碼"]);
-
-    // ===== 取得銷案清單 =====
-    const sheet = ss.getSheetByName("銷案清單");
-    const rawData = sheet ? sheet.getDataRange().getValues() : [];
+    // ===== 處理銷案清單 =====
+    const rawData = sheetsData["銷案清單"];
     let all = [];
-
     if (rawData.length > 0) {
-      const headers = (rawData[0] || []).map(h => typeof h === 'string' ? h.trim() : h);
-
-      // 日期 / 時間欄位
+      const headers = rawData[0].map(h => typeof h === 'string' ? h.trim() : h);
+      
+      // 預先找出日期與時間欄位的索引，避免在迴圈內反覆判斷
       const dateIdxs = [];
       const timeIdxs = [];
-      headers.forEach((header, idx) => {
-        if (typeof header === 'string') {
-          if (header.includes("日") || header.trim() === "銷案期限") {
-            dateIdxs.push(idx);
-          } else if (header.includes("時間")) {
-            timeIdxs.push(idx);
-          }
+      headers.forEach((h, idx) => {
+        if (typeof h === 'string') {
+          if (h.includes("日") || h === "銷案期限") dateIdxs.push(idx);
+          else if (h.includes("時間")) timeIdxs.push(idx);
         }
       });
 
-      // 基本欄位
       const baseCols = [
         "管理單位","輔導員","個案類型","總編號","個案姓名","申請人","申請時間","結束治療日","銷案原因","銷案期限","審核狀態",
         "不可逆缺失項","不可逆缺失項數","不可逆缺失項(文本)","可逆缺失項","可逆缺失項數","可逆缺失項(文本)","建議事項","建議事項(文本)","備註", "缺失項類別數",
         "退件次數","補件次數","前次退件時間","前次補件時間","局抽回次數","局前次抽回時間", "第1次退件時間", "第1次退件人",
         "最近審核者","最近審核時間","審核通過時間","審核通過者","審核花費天數","案件處理可用天數"
       ];
-
-      const lossFields = headers.filter(h => String(h).endsWith("筆數"));
-      const allCols = baseCols.concat(lossFields);
+      const allCols = baseCols; 
       const allIdx = allCols.map(col => headers.indexOf(col));
       const deadlineIdx = headers.indexOf("銷案期限");
 
-      const sorted = rawData
-        .slice(1)
-        .filter(row => row && row.some(cell => cell !== "" && cell !== null && cell !== undefined))
+      // 排序與過濾空白行
+      const sorted = rawData.slice(1)
+        .filter(row => row && row.some(cell => cell !== ""))
         .sort((a, b) => {
           const d1 = (deadlineIdx >= 0 && a[deadlineIdx] instanceof Date) ? a[deadlineIdx] : new Date("9999-12-31");
           const d2 = (deadlineIdx >= 0 && b[deadlineIdx] instanceof Date) ? b[deadlineIdx] : new Date("9999-12-31");
           return d1 - d2;
         });
 
-      all = [allCols].concat(
-        sorted.map(row => allIdx.map(idx => {
-          let val = idx >= 0 ? row[idx] : "";
-          if (dateIdxs.includes(idx) && val instanceof Date) return Utilities.formatDate(val, tz, 'yyyy/MM/dd');
-          if (timeIdxs.includes(idx) && val instanceof Date) return Utilities.formatDate(val, tz, 'yyyy/MM/dd HH:mm:ss');
-          return val ?? "";
-        }))
-      );
+      // 轉換資料格式
+      const formattedBody = sorted.map(row => allIdx.map(idx => {
+        let val = idx >= 0 ? row[idx] : "";
+        if (val instanceof Date) {
+          if (dateIdxs.includes(idx)) return Utilities.formatDate(val, tz, 'yyyy/MM/dd');
+          if (timeIdxs.includes(idx)) return Utilities.formatDate(val, tz, 'yyyy/MM/dd HH:mm:ss');
+        }
+        return val ?? "";
+      }));
+      all = [allCols].concat(formattedBody);
     }
 
-    // ===== 取得題庫 =====
-    const questionSheet = ss.getSheetByName("題庫");
-    const questions = questionSheet ? questionSheet.getDataRange().getValues() : [];
+    // ===== 處理編輯紀錄 =====
+    const editRaw = sheetsData["編輯紀錄"];
+    let editRecords = [];
 
-    // ===== 取得答題紀錄 =====
-    const examRecordSheet = ss.getSheetByName("答題紀錄");
-    let examRecords = [];
-    if (examRecordSheet) {
-      const data = examRecordSheet.getDataRange().getValues();
-      if (data.length > 0) {
-        const headers = data[0];
-        const tsIdx = headers.indexOf("提交時間");
-        const body = data.slice(1).map(row => {
+    if (editRaw.length > 0) {
+      const headers = editRaw[0];
+      const timeIdx = headers.indexOf("編輯時間");
+
+      const body = editRaw.slice(1).map(row => {
+        if (timeIdx >= 0 && row[timeIdx] instanceof Date) {
           let newRow = [...row];
-          if (tsIdx >= 0 && row[tsIdx] instanceof Date) {
-            newRow[tsIdx] = Utilities.formatDate(row[tsIdx], tz, "yyyy/MM/dd HH:mm:ss");
-          }
+          newRow[timeIdx] = Utilities.formatDate(row[timeIdx], tz, "yyyy/MM/dd HH:mm:ss");
           return newRow;
-        });
-        examRecords = [headers].concat(body);
-      }
+        }
+        return row;
+      });
+
+      editRecords = [headers].concat(body);
     }
 
-    // ✅ 最終回傳
+    // ===== 處理答題紀錄 =====
+    const examRaw = sheetsData["答題紀錄"];
+    let examRecords = [];
+    if (examRaw.length > 0) {
+      const headers = examRaw[0];
+      const tsIdx = headers.indexOf("提交時間");
+      const body = examRaw.slice(1).map(row => {
+        if (tsIdx >= 0 && row[tsIdx] instanceof Date) {
+          let newRow = [...row];
+          newRow[tsIdx] = Utilities.formatDate(row[tsIdx], tz, "yyyy/MM/dd HH:mm:ss");
+          return newRow;
+        }
+        return row;
+      });
+      examRecords = [headers].concat(body);
+    }
+
     return {
       all: all,
       accounts: filteredAccounts,
-      questions: questions,
-      examRecords: examRecords
+      questions: sheetsData["題庫"], // 題庫不需處理直接回傳
+      examRecords: examRecords,
+      editRecords: editRecords
     };
   }
-
 
 // 儲存便利貼
 function saveUserNotepad(name, unit, content) {
@@ -348,6 +329,7 @@ function submitDisposalRequest(data) {
     }
 
     // 訊息通知輔導員
+    /*
     if (advisorName) {
       const userSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("帳號資訊");
       const userData = userSheet.getDataRange().getValues();
@@ -372,6 +354,7 @@ function submitDisposalRequest(data) {
         }
       }
     }
+    */
 
     // 新增編輯紀錄
     writeDisposalLog({
@@ -397,7 +380,7 @@ function submitDisposalRequest(data) {
       "\n\n可能失敗的申請資料如下：\n" +
       JSON.stringify(data, null, 2);
 
-    MailApp.sendEmail({
+    GmailApp.sendEmail({
       to: "AF7422@ntpc.gov.tw",
       subject,
       body
@@ -469,7 +452,7 @@ function submitDisposalRequest(data) {
           "比對結果：完全找不到對應資料列。"
         ].join("\n");
 
-        MailApp.sendEmail({
+        GmailApp.sendEmail({
           to: adminEmail,
           subject: `[銷案審核錯誤] ${reviewerName} 找不到 ${data.tb}`,
           body: msg
@@ -494,7 +477,7 @@ function submitDisposalRequest(data) {
         ].join("\n");
 
         try {
-          MailApp.sendEmail({
+          GmailApp.sendEmail({
             to: adminEmail,
             subject: `[銷案警告] ${reviewerName} 審核 ${data.tb} 時申請時間不符`,
             body: msg
@@ -581,8 +564,28 @@ function submitDisposalRequest(data) {
           if (irrTextIdx !== -1) row[irrTextIdx] = lossItemJsonToText(data.unreversible);
           if (revTextIdx !== -1) row[revTextIdx] = lossItemJsonToText(data.reversible);
           if (sugTextIdx !== -1) row[sugTextIdx] = lossItemJsonToText(data.suggestion);
+ 
+          // ===== 計算「缺失項類別數」=====
+          let defectCategoryCount = 0;
 
-          // === 改為記錄「【名稱】筆數」或「【名稱(不可逆)】筆數」 ===
+          try {
+            const irr = JSON.parse(data.unreversible || '[]');
+            const rev = JSON.parse(data.reversible || '[]');
+
+            const set = new Set();
+
+            [...irr, ...rev].forEach(item => {
+              if (item.select && item.select.trim()) {
+                set.add(item.select.trim());
+              }
+            });
+
+            defectCategoryCount = set.size;
+          } catch (e) {
+            defectCategoryCount = 0;
+          }
+
+          //缺失項類別數
           function ensureCol(headerArr, sheet, colName) {
             let idx = headerArr.findIndex(h => String(h).trim() === colName.trim());
             if (idx === -1) {
@@ -594,60 +597,6 @@ function submitDisposalRequest(data) {
             return idx;
           }
 
-          // 統計所有 select 項目次數與類型
-          let selectCountMap = {}; // {"名稱": { unreversible: 數字, reversible: 數字 }}
-          [
-            {type: 'unreversible', json: data.unreversible},
-            {type: 'reversible', json: data.reversible}
-          ].forEach(block => {
-            let arr = [];
-            try {
-              arr = JSON.parse(block.json || '[]');
-              if (!Array.isArray(arr)) arr = [];
-            } catch(e) { arr = []; }
-
-            arr.forEach(item => {
-              if (item.select && item.select.trim()) {
-                const name = item.select.trim();
-                if (!selectCountMap[name]) selectCountMap[name] = { unreversible: 0, reversible: 0 };
-                selectCountMap[name][block.type]++;
-              }
-            });
-          });
-
-          // 1. 先全部歸零
-          headers.forEach((col, idx) => {
-            const m = String(col).match(/^【(.+?)】筆數$/);
-            const m2 = String(col).match(/^【(.+?)\(不可逆\)】筆數$/);
-            if (m || m2) row[idx] = 0;
-          });
-
-          //2. 寫入各筆數欄位
-          Object.entries(selectCountMap).forEach(([name, counts]) => {
-            if (counts.unreversible > 0) {
-              let colName = `【${name}(不可逆)】筆數`;
-              let idx = ensureCol(headers, sheet, colName);
-              row[idx] = counts.unreversible;
-            }
-            if (counts.reversible > 0) {
-              let colName = `【${name}】筆數`;
-              let idx = ensureCol(headers, sheet, colName);
-              row[idx] = counts.reversible;
-            }
-          });
-
-          // ✅ 將其他「筆數」欄位補為 0（若這次沒出現）
-          headers.forEach((col, idx) => {
-            const m = String(col).match(/^【(.+?)】筆數$/);
-            const m2 = String(col).match(/^【(.+?)\(不可逆\)】筆數$/);
-            if ((m || m2) && (row[idx] === "" || row[idx] === undefined)) {
-              row[idx] = 0;
-            }
-          });
- 
-          // ===== 計算「缺失項類別數」=====
-          const defectCategoryCount = Object.keys(selectCountMap).length;
-
           const defectCategoryIdx = ensureCol(headers, sheet, "缺失項類別數");
           row[defectCategoryIdx] = defectCategoryCount;
 
@@ -657,7 +606,6 @@ function submitDisposalRequest(data) {
 
           row[lastReviewerIdx] = reviewerName;
           row[lastReviewTimeIdx] = nowStr;
-
 
           if (hasunreversibleIdx !== -1) {
             row[hasunreversibleIdx] = Number(row[unreversibleCountIdx]) > 0 ? "Y" : "N";
@@ -671,7 +619,7 @@ function submitDisposalRequest(data) {
 
           if (noteIdx !== -1) row[noteIdx] = data.備註 || "";
 
-          if (data.status.indexOf("通過") >= 0) {
+          if (data.status.indexOf("approve") >= 0) {
             row[statusIdx] = "✅ 通過";
             row[approveTimeIdx] = data.time;
             row[approveUserIdx] = data.reviewerName;
@@ -716,6 +664,8 @@ function submitDisposalRequest(data) {
           if (daysIdx !== -1) {
             sheet.getRange(rowIdx + 1, daysIdx + 1).setNumberFormat("0");
           }
+
+          /*
           // === 通知申請人 ===
           if (["✅ 通過", "❌ 退件", "⏪ 取消銷案"].includes(row[statusIdx])) {
             const applicantIdx = headers.indexOf("申請人");
@@ -749,7 +699,8 @@ function submitDisposalRequest(data) {
               }
             }
           }
-
+          */
+          
           // === 新增審核編輯紀錄 ===
           writeDisposalLog({
             unit: data.unit,
@@ -781,7 +732,7 @@ function submitDisposalRequest(data) {
         ].join("\n");
 
         Logger.log(errMsg);
-        MailApp.sendEmail({
+        GmailApp.sendEmail({
           to: adminEmail,
           subject: `[銷案執行錯誤] ${reviewerName} 執行 submitReviewDecision 失敗`,
           body: errMsg
@@ -836,6 +787,7 @@ function submitDisposalRequest(data) {
     row[recallTimeIdx] = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy/MM/dd HH:mm:ss');
     sheet.getRange(rowIdx + 1, 1, 1, headers.length).setValues([row]);
 
+    /*
     // ===== 通知承辦人 =====
     const applicantIdx = headers.indexOf("申請人");
     const caseTypeIdx = headers.indexOf("個案類型");
@@ -872,6 +824,7 @@ function submitDisposalRequest(data) {
         userSheet.getRange(userRowIdx + 1, msgIdx + 1).setValue(totalMsg);
       }
     }
+    */
 
     // ===== 編輯紀錄 =====
     writeDisposalLog({
@@ -992,7 +945,7 @@ function submitDisposalRequest(data) {
         "比對結果：完全找不到對應資料列。"
       ].join("\n");
 
-      MailApp.sendEmail({
+      GmailApp.sendEmail({
         to: adminEmail,
         subject: `[銷案補件錯誤] ${reviewerName} 找不到 ${data.tb}`,
         body: msg
@@ -1016,7 +969,7 @@ function submitDisposalRequest(data) {
       ].join("\n");
 
       try {
-        MailApp.sendEmail({
+        GmailApp.sendEmail({
           to: adminEmail,
           subject: `[銷案補件警告] ${reviewerName} 補件 ${data.tb} 時申請時間不符`,
           body: msg
@@ -1097,6 +1050,7 @@ function submitDisposalRequest(data) {
       sheet.getRange(rowIdx + 1, tbIdx + 1).setNumberFormat("@");
     }
 
+    /*
     // === 補件通知輔導員 ===
     if (row[statusIdx] === "🔄 補件") {
       const helperIdx = headers.indexOf("輔導員");
@@ -1131,6 +1085,7 @@ function submitDisposalRequest(data) {
         }
       }
     }
+    */
 
     // === 新增補件編輯紀錄 ===
     writeDisposalLog({
@@ -1246,24 +1201,17 @@ function updateDeadlineNotifications() {
     }
   }
 
-  // 寫入帳號資訊（合併原本訊息）
+  // 寫入帳號資訊
   const accountData = accountSheet.getDataRange().getValues();
   const accHeaders = accountData[0].map(h => typeof h === "string" ? h.trim() : h);
   const nameIdx = accHeaders.indexOf("姓名");
   const msgIdx = accHeaders.indexOf("訊息通知");
   for (let i = 1; i < accountData.length; i++) {
     const userName = accountData[i][nameIdx];
-    const oldMsg = accountData[i][msgIdx] ? String(accountData[i][msgIdx]) : "";
-    const newMsgs = notifications[userName] ? notifications[userName].join('\n') : "";
-    let totalMsg = "";
-    if (newMsgs && oldMsg) {
-      totalMsg = newMsgs + "\n" + oldMsg;
-    } else if (newMsgs) {
-      totalMsg = newMsgs;
-    } else {
-      totalMsg = oldMsg; // 無新訊息，保留原有內容
-    }
-    accountSheet.getRange(i+1, msgIdx+1).setValue(totalMsg);
+    const newMsgs = notifications[userName] 
+      ? notifications[userName].join('\n') 
+      : "";
+    accountSheet.getRange(i+1, msgIdx+1).setValue(newMsgs || "");
   }
 }
 
@@ -1308,7 +1256,7 @@ function registerAccount(info) {
     }
   }
 
-  MailApp.sendEmail({
+  GmailApp.sendEmail({
     to: "AF7422@ntpc.gov.tw",
     subject: "[銷案審核助手] 有新帳號申請待審核",
     htmlBody:
@@ -1375,10 +1323,37 @@ function calcDisposalDeadline(caseType, endDate, reason) {
     const mainFolders = parentFolder.getFoldersByName(mainFolderName);
     mainFolder = mainFolders.hasNext() ? mainFolders.next() : parentFolder.createFolder(mainFolderName);
 
-    // === 確保存在子資料夾 (前端傳來的 folderName) ===
+    // === 從 folderName 解析 yyyy-mm ===
+    const match = folderName.match(/^(\d{4})-(\d{2})/);
+    if (!match) {
+      throw new Error("folderName 格式錯誤，應為 yyyy-mm-dd-xxx");
+    }
+
+    const year = match[1];   // yyyy
+    const month = match[2];  // mm
+
+    // === 年資料夾 ===
+    const yearFolderName = `${year}年`;
+    let yearFolder;
+    const yearFolders = mainFolder.getFoldersByName(yearFolderName);
+    yearFolder = yearFolders.hasNext() 
+      ? yearFolders.next() 
+      : mainFolder.createFolder(yearFolderName);
+
+    // === 月資料夾 ===
+    const monthFolderName = `${year}-${month}`;
+    let monthFolder;
+    const monthFolders = yearFolder.getFoldersByName(monthFolderName);
+    monthFolder = monthFolders.hasNext()
+      ? monthFolders.next()
+      : yearFolder.createFolder(monthFolderName);
+
+    // === 最終子資料夾（案件）===
     let targetFolder;
-    const subFolders = mainFolder.getFoldersByName(folderName);
-    targetFolder = subFolders.hasNext() ? subFolders.next() : mainFolder.createFolder(folderName);
+    const subFolders = monthFolder.getFoldersByName(folderName);
+    targetFolder = subFolders.hasNext()
+      ? subFolders.next()
+      : monthFolder.createFolder(folderName);
 
     // === 建立檔案並設分享權限 ===
     const file = targetFolder.createFile(blob);
@@ -1464,4 +1439,41 @@ function calcDisposalDeadline(caseType, endDate, reason) {
     }
   }
 
+//寄送密碼給使用者
+function sendPasswordEmail(acc, name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("帳號資訊");
+  const data = sheet.getDataRange().getValues();
+
+  const headers = data[0];
+  const accIdx = headers.indexOf("公務帳號");
+  const nameIdx = headers.indexOf("姓名");
+  const pwdIdx = headers.indexOf("密碼");
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+
+    if (
+      String(row[accIdx]).toLowerCase() === acc.toLowerCase() &&
+      String(row[nameIdx]).trim() === name
+    ) {
+      const pwd = row[pwdIdx];
+      const email = acc + "@ntpc.gov.tw";
+
+      const subject = "銷案審核助手－密碼通知";
+      const body =
+`您好，
+
+您的密碼資訊如下：
+
+${pwd}
+
+請妥善保管您的密碼。
+
+（本系統為內部工具，請勿外流）`;
+
+      GmailApp.sendEmail(email, subject, body);
+      return;
+    }
+  }
+}
 
