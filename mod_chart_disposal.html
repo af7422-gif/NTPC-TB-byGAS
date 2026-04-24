@@ -201,9 +201,9 @@
         <option value="avgDefectByUnit">平均缺失項數</option>
         <option value="avgDefectByMonth">每月平均缺失項數</option>
         <option value="defectDistByUnit">缺失項數分布</option>
+        <option value="lossCategoryDist">缺失項類別數分布</option>
         <option value="byLossCategory">缺失項類統計</option>
         <option value="overdueByUnit">逾期銷案數</option>
-        <option value="directFailIrreversible">直接列不合格項件數</option>
       `;
     } else {
       chartSelect.innerHTML = `
@@ -214,9 +214,9 @@
         <option value="avgDefectByUnit">平均缺失項數</option>
         <option value="avgDefectByMonth">每月平均缺失項數</option>
         <option value="defectDistByUnit">缺失項數分布</option>
+        <option value="lossCategoryDist">缺失項類別數分布</option>
         <option value="byLossCategory">缺失項類統計</option>
         <option value="overdueByUnit">逾期銷案數</option>
-        <option value="directFailIrreversible">直接列不合格項件數</option>
       `;
     }
 
@@ -385,26 +385,26 @@
     return { labels: pairs.map(p => String(p[0])), values: pairs.map(p => p[1]) };
   }
 
-  // 未依指示修正
-  function aggregateDirectFailIrreversible(rows, dim) {
-    const keyOf = (r) =>
-      dim === 'unit'      ? (r["管理單位"] || "(未填)") :
-      dim === 'reason'    ? (r["銷案原因"] || "(未填)") :
-      dim === 'applicant' ? (r["申請人"]   || "(未填)") : "(未定義)";
-
+  // 缺失項類別數分布
+  function getLossCategoryCount(row) {
+    const items = getLossItemsFromRow(row);
+    return new Set(items).size; // ✅ 類別數（去重）
+  }
+  function aggregateByLossCategoryCount(rows) {
     const map = new Map();
+
     rows.forEach(r => {
-      const count = toNonNegInt(r["【直接列不合格項(不可逆)】筆數"]);
-      if (count > 0) {
-        const k = keyOf(r);
-        map.set(k, (map.get(k) || 0) + 1);
-      }
+      const n = getLossCategoryCount(r); // ⭐ 用新函數
+      map.set(n, (map.get(n) || 0) + 1);
     });
 
-    const pairs = [...map.entries()].sort((a,b) => b[1] - a[1]);
-    return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
-  }
+    const pairs = [...map.entries()].sort((a,b)=> a[0] - b[0]);
 
+    return {
+      labels: pairs.map(p => String(p[0])),
+      values: pairs.map(p => p[1])
+    };
+  }
   // 一般 count 聚合
   function aggregateCount(rows, dim) {
     const keyOf = (r) => (
@@ -433,33 +433,36 @@
     if (sel === "byLossCategory") {
       if (dim === "byLossCategory") {
         const map = new Map();
+
         rows.forEach(r => {
-          Object.keys(r).forEach(k => {
-            if (/^【.+】筆數$/.test(k)) {
-              const val = toNonNegInt(r[k]);
-              if (val > 0) {
-                map.set(k, (map.get(k) || 0) + val);
-              }
-            }
+          const items = getLossItemsFromRow(r);
+
+          items.forEach(item => {
+            map.set(item, (map.get(item) || 0) + 1);
           });
         });
-        const pairs = [...map.entries()].sort((a, b) => b[1] - a[1]);
+
+        const pairs = [...map.entries()].sort((a,b)=>b[1]-a[1]);
+
         return {
-          labels: pairs.map(p => p[0].replace(/^【(.+?)】筆數$/, '$1')), // 簡短顯示
-          rawLabels: pairs.map(p => p[0]), // 原始欄位名
-          values: pairs.map(p => p[1])
+          labels: pairs.map(p=>p[0]),
+          values: pairs.map(p=>p[1])
         };
       } else if (dim === "unit") {
         const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
         if (!lossCol) return { labels: [], values: [] };
 
         const map = new Map();
+
         rows.forEach(r => {
-          const val = toNonNegInt(r[lossCol]);
-          if (val > 0) {
-            const k = r["管理單位"] || "(未填)";
-            map.set(k, (map.get(k) || 0) + val);
-          }
+          const items = getLossItemsFromRow(r);
+
+          items.forEach(item => {
+            if (item === lossCol) {
+              const k = r["管理單位"] || "(未填)";
+              map.set(k, (map.get(k) || 0) + 1);
+            }
+          });
         });
         const pairs = [...map.entries()].sort((a, b) => b[1] - a[1]);
         return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
@@ -468,12 +471,16 @@
         if (!lossCol) return { labels: [], values: [] };
 
         const map = new Map();
+
         rows.forEach(r => {
-          const val = toNonNegInt(r[lossCol]);
-          if (val > 0) {
-            const k = r["申請人"] || "(未填)";
-            map.set(k, (map.get(k) || 0) + val);
-          }
+          const items = getLossItemsFromRow(r);
+
+          items.forEach(item => {
+            if (item === lossCol) {
+              const k = r["申請人"] || "(未填)";
+              map.set(k, (map.get(k) || 0) + 1);
+            }
+          });
         });
         const pairs = [...map.entries()].sort((a, b) => b[1] - a[1]);
         return { labels: pairs.map(p => p[0]), values: pairs.map(p => p[1]) };
@@ -490,10 +497,10 @@
       return (dim === 'reject') ? aggregateByReject(rows) : aggregateCount(rows, dim);
     } else if (sel === 'defectDistByUnit') {
       return (dim === 'defect') ? aggregateByDefect(rows) : aggregateCount(rows, dim);
+    } else if (sel === 'lossCategoryDist') {
+      return (dim === 'lossCategoryCount') ? aggregateByLossCategoryCount(rows): aggregateCount(rows, dim);
     } else if (sel === 'avgAvailableDays') {
       return aggregateAvgAvailableDays(rows, dim);    
-    } else if (sel === 'directFailIrreversible') {
-      return aggregateDirectFailIrreversible(rows, dim);
     } else {
       return aggregateCount(rows, dim);
     }
@@ -521,8 +528,7 @@
       sel === 'byUnit' ||
       sel === 'overdueByUnit' ||
       sel === 'avgRejectByUnit' ||
-      sel === 'avgDefectByUnit' ||
-      sel === 'directFailIrreversible'
+      sel === 'avgDefectByUnit'
     ) {
       topDim = isBureau ? 'unit' : 'applicant';
     } else if (sel === 'avgAvailableDays') {
@@ -533,6 +539,8 @@
       topDim = 'reject';
     } else if (sel === 'defectDistByUnit') {
       topDim = 'defect';
+    } else if (sel === 'lossCategoryDist') {
+      topDim = 'lossCategoryCount';
     } else if (sel === 'byLossCategory') {
       topDim = 'byLossCategory';
     } else {
@@ -567,7 +575,12 @@
 
     stack.forEach(layer => {
       if (!(layer.filter && layer.filter.value != null)) return;
-      if (layer.dim === 'byLossCategory') return;
+      if (layer.dim === 'byLossCategory') {
+        const lossVal = layer.filter.value;
+        // 篩選出含有該缺失項目的個案
+        rows = rows.filter(r => getLossItemsFromRow(r).includes(lossVal));
+        return; 
+      }
 
       const dim = layer.dim;
       const colValOf = (r) =>
@@ -576,6 +589,7 @@
         dim === 'applicant' ? (r["申請人"]   || "(未填)") :
         dim === 'reject'    ? String(getActualRejectCount(r)) :
         dim === 'defect'    ? String(getDefectCount(r)) :
+        dim === 'lossCategoryCount' ? String(getLossCategoryCount(r)) :
         dim === 'month'     ? (() => {
           const d = toDateOnly(r["審核通過時間"]);
           if (!d) return "(未填)";
@@ -608,9 +622,6 @@
         return (approve && deadline && approve.getTime() > deadline.getTime());
       });
     }
-    if (sel === 'directFailIrreversible') {
-      rows = rows.filter(r => toNonNegInt(r["【直接列不合格項(不可逆)】筆數"]) > 0);
-    }
     return rows;
   }
 
@@ -623,24 +634,13 @@
 
     // ===== 算出每個類別的個案數 =====
     let counts;
-    if (sel === "byLossCategory") {
-      const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
-      if (!lossCol) {
-        counts = agg.labels.map(lab =>
-          viewRows.filter(r => toNonNegInt(r[`【${lab}】筆數`]) > 0).length
-        );
-      } else {
-        counts = agg.labels.map(lab =>
-          viewRows.filter(r => {
-            const hasLoss = toNonNegInt(r[lossCol]) > 0;
-            const groupVal =
-              dim === 'unit' ? (r["管理單位"] || "(未填)") :
-              dim === 'applicant' ? (r["申請人"] || "(未填)") : "(未定義)";
-            return hasLoss && groupVal === lab;
-          }).length
-        );
-      }
+    if (sel === "byLossCategory" && dim === "byLossCategory") {
+      // 最上層：計算有多少個案包含這個缺失項
+      counts = agg.labels.map(lab =>
+        viewRows.filter(r => getLossItemsFromRow(r).includes(lab)).length
+      );
     } else {
+      // 下鑽層或其他指標：由於 viewRows 已經過濾過缺失項，這裡正常計算即可
       counts = agg.labels.map(lab => viewRows.filter(r => {
         const val =
           dim === 'unit' ? (r["管理單位"] || "(未填)") :
@@ -783,6 +783,7 @@
                 dim === 'applicant'  ? '申請人'   :
                 dim === 'reject'     ? '退件次數' :
                 dim === 'defect'     ? '缺失項數' :
+                dim === 'lossCategoryCount' ? '缺失項類別數' :
                 dim === 'byLossCategory' ? '缺失項別' :
                 dim === 'month'      ? '年-月' : '',
               font: { size: 14 },
@@ -812,7 +813,14 @@
           const idx = elements[0].index;
           const label = agg.rawLabels ? agg.rawLabels[idx] : sortedLabels[idx];
           const dimNow = currentLayer().dim;
-          if (dimNow !== 'applicant') handleBarClick(label);
+          
+          if (dimNow !== 'applicant') {
+            // 💡 使用 setTimeout 將下鑽動作延遲到當前事件列隊結束後執行
+            // 這樣可以避免 Chart.js 在事件處理中途被 destroy 而報錯
+            setTimeout(() => {
+              handleBarClick(label);
+            }, 0);
+          }
         }
       }
     });
@@ -827,22 +835,23 @@
     if (sel === "byLossCategory") {
       const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
       if (lossCol) {
-        const total = viewRows.reduce((acc, r) => acc + toNonNegInt(r[lossCol]), 0);
-        const caseCount = viewRows.filter(r => toNonNegInt(r[lossCol]) > 0).length;
-        infoText = `共 ${total} 筆（${caseCount} 個案）`;
+        // 下鑽後：利用過濾好的 viewRows 準確計算該項目的總筆數
+        let total = 0;
+        viewRows.forEach(r => {
+          const items = getLossItemsFromRow(r);
+          total += items.filter(i => i === lossCol).length;
+        });
+        infoText = `共 ${total} 筆（${viewRows.length} 個案）`;
       } else {
+        // 最上層：計算所有缺失項總和
         let total = 0;
         let caseCount = 0;
         viewRows.forEach(r => {
-          let hasLoss = false;
-          Object.keys(r).forEach(k => {
-            if (/^【.+】筆數$/.test(k)) {
-              const val = toNonNegInt(r[k]);
-              total += val;
-              if (val > 0) hasLoss = true;
-            }
-          });
-          if (hasLoss) caseCount++;
+          const items = getLossItemsFromRow(r);
+          if (items.length > 0) {
+            total += items.length;
+            caseCount++;
+          }
         });
         infoText = `共 ${total} 筆（${caseCount} 個案）`;
       }
@@ -882,13 +891,16 @@
     if (sel === "byLossCategory") {
       const lossCol = stack.find(l => l.dim === "byLossCategory")?.filter?.value;
       if (lossCol) {
-        cols.push(lossCol);
-        dataRows = dataRows.filter(r => toNonNegInt(r[lossCol]) > 0);
-        dataRows.forEach(r => { if (!(lossCol in r)) r[lossCol] = 0; });
-      } else {
-        dataRows = dataRows.filter(r => {
-          return Object.keys(r).some(k => /^【.+】筆數$/.test(k) && toNonNegInt(r[k]) > 0);
+        cols.push(lossCol); // 在表格最後加上缺失項名稱的欄位
+
+        // 動態計算該缺失項目在這個個案中實際出現了幾次，塞給欄位渲染
+        dataRows.forEach(r => { 
+          const items = getLossItemsFromRow(r);
+          r[lossCol] = items.filter(i => i === lossCol).length; 
         });
+      } else {
+        // 最上層直接過濾出有任何缺失項的個案就好
+        dataRows = dataRows.filter(r => getLossItemsFromRow(r).length > 0);
       }
     }
 
@@ -945,9 +957,9 @@
             const caseKey = `${val}__${applyTimeVal}`;
 
             return `<td style="cursor:pointer; color:#007BFF; text-decoration:underline;"
-                    onclick="openReviewForm('${caseKey}')">${escapeHtml(val)}</td>`;
+                    onclick="openReviewForm('${caseKey}')">${escapeChart(val)}</td>`;
           }
-          return `<td>${escapeHtml(val)}</td>`;
+          return `<td>${escapeChart(val)}</td>`;
       }).join('')}</tr>`
     ).join('');
   }
@@ -979,7 +991,8 @@
       applicant: "申請人",
       reject: "退件次數",
       month: "審核年月",
-      defect: "缺失項數" 
+      defect: "缺失項數",
+      lossCategoryCount: "缺失項類別數"
     };
 
     const crumbs = stack
@@ -1000,7 +1013,7 @@
     const select = document.getElementById('chartSelect');
     const val = select ? select.value : 'byUnit';
 
-    const baseIntro = "本圖表依照「個案類型」為『TB』，且「審核狀態」為『✅ 通過』的個案進行篩選。\n 缺失項的統計均為 不可逆缺失 + 可逆缺失 \n\n";
+    const baseIntro = "本圖表依照「個案類型」為『TB』，且「審核狀態」為『通過』的個案進行篩選。\n 缺失項的統計均為 不可逆缺失 + 可逆缺失 \n\n";
 
     const descMap = {
       byUnit: "說明：統計各管理單位的申請件數",
@@ -1014,7 +1027,7 @@
       defectDistByUnit: "說明：依缺失項總數 (0,1,2,…) 分組，統計人數",
       byLossCategory: "說明：統計各缺失項的筆數合計",
       overdueByUnit: "說明：審核通過時間 > 銷案期限 的件數",
-      directFailIrreversible: "說明：至少有一項『【直接列不合格項(不可逆)】筆數』 > 0 的件數"
+      lossCategoryDist: "說明：依每案「不同缺失項類別」(0,1,2,…) 分組統計"
     };
 
     return baseIntro + (descMap[val] || "");
@@ -1032,6 +1045,7 @@
     else if (curDim === 'unit') nextDim = 'applicant';
     else if (curDim === 'reject') nextDim = 'unit';
     else if (curDim === 'defect') nextDim = 'unit';
+    else if (curDim === 'lossCategoryCount') nextDim = 'unit';
     else if (curDim === 'reason') nextDim = 'unit';
     else if (curDim === 'byLossCategory') nextDim = 'unit';
 
@@ -1091,13 +1105,13 @@
       cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","審核通過時間","銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
       name: "每月平均缺失項數"
     },
-    directFailIrreversible: {
-      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數","【直接列不合格項(不可逆)】筆數"],
-      name: "直接列不合格項件數"
-    },
     byLossCategory: {
       cols: ["管理單位","總編號","個案姓名","申請人","結束治療日", "銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
       name: "缺失項類統計"
+    },
+    lossCategoryDist: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日", "銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "缺失項類別數分布"
     }
   };
 
@@ -1145,13 +1159,13 @@
       cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","審核通過時間","銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
       name: "每月平均缺失項數"
     },
-    directFailIrreversible: {
-      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數","【直接列不合格項(不可逆)】筆數"],
-      name: "直接列不合格項件數"
-    },
     byLossCategory: {
       cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","銷案原因","退件次數","不可逆缺失項數","可逆缺失項數"],
       name: "缺失項類統計"
+    },
+    lossCategoryDist: {
+      cols: ["管理單位","總編號","個案姓名","申請人","結束治療日","退件次數","不可逆缺失項數","可逆缺失項數"],
+      name: "缺失項類別數分布"
     }
   };
 
@@ -1174,6 +1188,7 @@
       dim === 'applicant'  ? '申請人'   :
       dim === 'reject'     ? '退件次數' :
       dim === 'defect'     ? '缺失項數' :
+      dim === 'lossCategoryCount' ? '缺失項類別數' :
       dim === 'byLossCategory' ? '缺失項別' :
       dim === 'month'      ? '年-月' : '類別';
 
@@ -1196,18 +1211,20 @@
     let counts = [];
     if (isCombo) {
       if (sel === 'byLossCategory' && dim === 'byLossCategory') {
-        // 特殊處理：每類缺失涉及多少個案
+        // 💡 修正點：不依賴 agg.rawLabels，改用 agg.labels (即缺失項名稱)
         const caseCountMap = new Map();
         rowsForExport.forEach(r => {
-          agg.rawLabels.forEach(lossCol => {
-            const val = toNonNegInt(r[lossCol]);
-            if (val > 0) {
-              caseCountMap.set(lossCol, (caseCountMap.get(lossCol) || 0) + 1);
-            }
+          const items = getLossItemsFromRow(r);
+          // 取得該個案中所有出現過的「不重複」缺失項類別
+          const uniqueItems = [...new Set(items)]; 
+          uniqueItems.forEach(lossName => {
+            caseCountMap.set(lossName, (caseCountMap.get(lossName) || 0) + 1);
           });
         });
-        counts = agg.rawLabels.map(col => caseCountMap.get(col) || 0);
+        // 根據目前圖表顯示的標籤順序，對應出個案數
+        counts = agg.labels.map(lab => caseCountMap.get(lab) || 0);
       } else {
+        // 其他情況（下鑽後或一般指標）
         counts = agg.labels.map(lab =>
           viewRows.filter(r => {
             const val =
@@ -1287,10 +1304,40 @@
     return /[",\n]/.test(s) ? `"${s}"` : s;
   }
 
-  function escapeHtml(s) {
+  function escapeChart(s) {
     return String(s).replace(/[&<>"']/g, m => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[m]));
   }
+  function parseJSONSafe(str) {
+    if (!str) return null;
+    try {
+      return typeof str === "string" ? JSON.parse(str) : str;
+    } catch {
+      return null;
+    }
+  }
 
+  function extractLossItems(jsonStr) {
+    const arr = parseJSONSafe(jsonStr);
+    if (!Array.isArray(arr)) return [];
+
+    return arr
+      .filter(item => item && item.checked && item.select)
+      .map(item => item.select.trim());
+  }
+
+  function getLossItemsFromRow(r) {
+    const result = [];
+
+    // 不可逆
+    const irr = extractLossItems(r["不可逆缺失項"]);
+    irr.forEach(item => result.push(item + "(不可逆)"));
+
+    // 可逆
+    const rev = extractLossItems(r["可逆缺失項"]);
+    rev.forEach(item => result.push(item));
+
+    return result; // ✅ 保留重複
+  }
 </script>
