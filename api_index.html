@@ -7,24 +7,31 @@
   <body>
     <!-- 登入區塊 -->
     <div id="loginSection">
-      <?!= include('login'); ?>
+      <?!= include('ui_login'); ?>
     </div>
 
     <!-- 考試區塊 -->
     <div id="examSection" style="display:none;">
-      <?!= include('exam'); ?>
+      <?!= include('ui_exam'); ?>
     </div>
 
     <!-- 主功能區塊 -->
     <div id="mainSection" style="display:none;">
       <input type="hidden" id="webAppUrl" value="<?= serviceUrl ?>">
-      <?!= include('main'); ?>
-      <?!= include('chart_base'); ?>
-      <?!= include('chart_disposal'); ?>
-      <?!= include('chart_exam'); ?>
-      <?!= include('questionBank'); ?>
-      <?!= include('review_flow'); ?>
+      <?!= include('ui_main'); ?>
+      <?!= include('mod_chart_base'); ?>
+      <?!= include('mod_chart_disposal'); ?>
+      <?!= include('mod_chart_exam'); ?>
+      <?!= include('mod_questionBank'); ?>
+      <?!= include('js_globals'); ?>
+      <?!= include('js_utils'); ?>
+      <?!= include('js_table'); ?>
+      <?!= include('js_listener'); ?>
+      <?!= include('css_main'); ?>   
+      <?!= include('css_review'); ?>   
     </div>
+
+      
 
     <script>
 
