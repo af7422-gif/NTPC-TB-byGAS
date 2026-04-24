@@ -41,11 +41,11 @@
   }
   #questionBankModal #questionTable th.sorted-asc::after {
     border-width: 0 4px 5px 4px;
-    border-color: transparent transparent #ffa07a transparent;
+    border-color: transparent transparent #2f6b87 transparent;
   }
   #questionBankModal #questionTable th.sorted-desc::after {
     border-width: 5px 4px 0 4px;
-    border-color: #ffa07a transparent transparent transparent;
+    border-color: #2f6b87 transparent transparent transparent;
   }
 
   /* 表格 */
@@ -146,10 +146,10 @@
 <div class="modal fade" id="questionBankModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-xxl modal-dialog-centered" style="max-width: var(--bank-width);">
     <div class="modal-content" style="padding:20px; border-radius:16px;">
-      <div class="modal-header border-0">
+      <div class="modal-header border-1">
         <div class="w-100 text-center">
           <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center" 
-                style="font-size:1.6rem; color:#ffa07a;">
+                style="font-size:1.6rem; color:#2f6b87;">
             <i class="bi bi-database-fill" style="font-size:2rem; vertical-align:middle;"></i>
             題庫瀏覽
           </span>
@@ -158,7 +158,7 @@
       </div>
 
       <div class="modal-body pt-2 pb-4">
-        <div class="d-flex justify-content-between mb-4">
+        <div class="d-flex justify-content-between mb-4 mt-3">
           <button class="custom-btn d-inline-flex align-items-center gap-1"
                   onclick="openAddQuestionModal()">
             <i class="bi bi-database-add" style="font-size:1.2rem; vertical-align:middle;"></i>
@@ -199,7 +199,7 @@
               </div>
               <div class="col-auto ms-auto">
                 <button type="button" class="btn btn-link p-0" id="clearFilterBtn"
-                  style="font-size:1.9rem; color:#ffa07a; margin-left:24px;"
+                  style="font-size:1.9rem; color:#ff9800; margin-left:24px;"
                   title="清除篩選" onclick="resetFilters()">
                   <span class="material-icons">cleaning_services</span>
                 </button>
@@ -228,7 +228,7 @@
       </div>
 
       <div class="modal-footer justify-content-center">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">關閉</button>
       </div>
     </div>
   </div>
@@ -240,7 +240,7 @@
     <div class="modal-content">
       <div class="modal-header border-0">
         <div class="w-100 text-center">
-          <span style="font-size:1.6rem; font-weight:700; color:#ffa07a;">
+          <span style="font-size:1.6rem; font-weight:700; color:#2f6b87;">
             <i class="material-icons align-middle" style="font-size:2.2rem;">playlist_add</i> 添加題目
           </span>
         </div>
@@ -297,7 +297,7 @@
         <!-- 六、提示圖（新增） -->
         <div class="mb-4">
             <label class="form-label">提示圖（選填）</label>
-            <button type="button" id="addReferenceImageBtn" class="btn btn-outline-primary d-flex align-items-center gap-2">
+            <button type="button" id="addReferenceImageBtn" class="btn-pending d-flex align-items-center gap-2">
               <i class="bi bi-image"></i> 加入圖片
             </button>
             <div id="referencePreviewContainer" class="mt-3"></div>
@@ -305,10 +305,13 @@
         </div>        
       </div>
 
-      <div class="modal-footer justify-content-center">
-        <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-soft-primary" onclick="submitNewQuestion()">提交</button>
-      </div>
+        <div class="modal-footer justify-content-center" style="gap: 0.5rem" id="disposalModalFooter">
+          <button type="button" class="btn-cancel" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn-approve" onclick="submitNewQuestion()" id="submitBtn">
+            <i data-lucide="send" width="18" height="18"></i>
+            提交
+          </button>
+        </div>
     </div>
   </div>
 </div>
@@ -319,7 +322,7 @@
     <div class="modal-content">
       <div class="modal-header border-0">
         <div class="w-100 text-center">
-          <span style="font-size:1.6rem;font-weight:700;color:#ffa07a;">
+          <span style="font-size:1.6rem;font-weight:700;color:#2f6b87;">
             <i class="material-icons align-middle" style="font-size:2.2rem;">visibility</i>
             題目檢視與審核
           </span>
@@ -378,7 +381,7 @@
         <!-- 🧩 二、審核區 -->
         <section id="questionReviewSection">
           <h5 class="fw-bold mb-3 text-secondary">
-            <i class="material-icons align-middle me-1" style="color:#ffa07a;">rule</i>
+            <i class="material-icons align-middle me-1" style="color:#2f6b87;">rule</i>
             審核資訊
           </h5>
 
@@ -397,10 +400,10 @@
           </div>
 
           <!-- 控制按鈕 -->
-          <div class="text-center mt-4">
-            <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">關閉</button>
-            <button type="button" id="btnSubmitReview" class="btn btn-soft-primary" onclick="submitReview()" disabled>提交審核</button>
-            <button type="button" id="btnResubmit" class="btn btn-soft-success" style="display:none;">
+          <div class="d-flex justify-content-center gap-3">
+            <button type="button" class="btn-cancel" data-bs-dismiss="modal">關閉</button>
+            <button type="button" id="btnSubmitReview" class="btn-approve" onclick="submitReview()" disabled>提交審核</button>
+            <button type="button" id="btnResubmit" class="btn-patch" style="display:none;">
               <i class="material-icons align-middle me-1">restart_alt</i> 重新送審
             </button>
           </div>
@@ -433,12 +436,15 @@
         <img id="pasteImagePreview_question" style="display:none; margin-top:10px; max-width:100%;">
       </div>
       <div class="modal-footer" style="padding:1.5rem 2rem;">
-        <button type="button" class="btn btn-outline-danger me-auto" id="removePastedImage_question">
-          <span class="material-icons" style="vertical-align:middle;">close</span>
+        <button type="button" class="btn-clear me-auto" id="removePastedImage">
+          <i data-lucide="image-off"></i>
           移除預覽圖
         </button>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-primary" id="confirmPasteImage_question">套用</button>
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn-approve" id="confirmPasteImage">
+          <i data-lucide="image"></i>
+          套用
+        </button>
       </div>
     </div>
   </div>
@@ -494,7 +500,7 @@
      data-bs-keyboard="false">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="min-height: 320px;">
-      <div class="modal-body text-center" style="padding-top: 48px; padding-bottom: 32px;">
+      <div class="modal-body text-center" style="padding-top: 48px; padding-bottom: 26px;">
         <div class="spinner-border mb-4" style="width: 3rem; height: 3rem;"></div>
         <div style="font-size:1.5rem; letter-spacing:2px;" class="mb-3">
           請稍候，正在上傳圖片...
@@ -1057,6 +1063,8 @@
       document.getElementById("referencePreviewContainer").innerHTML = "";
       document.getElementById("pasteImagePreview_question").style.display = "none";
     };
+
+    refreshNotification();
   }
 
 
@@ -1476,14 +1484,13 @@
       const doneEl = document.getElementById("updateAddQuestionCompleteModal");
       document.getElementById("updateAddQuestionMessage").innerText = "審核提交完成";
       bootstrap.Modal.getOrCreateInstance(doneEl).show();
-
+      refreshNotification();
       // === 🕐 再進行後端寫入（非同步，不阻塞畫面） ===
       google.script.run.updateReviewInfo(updateData);
     };
+
+    refreshNotification();
   }
-
-
-
 
   // 清空添加題目表單
   function resetAddQuestionForm() {
@@ -1631,7 +1638,7 @@
       <div class="mb-4">
         <label class="form-label">提示圖（選填）</label>
         <div>
-          <button type="button" id="editAddReferenceBtn" class="btn btn-outline-primary">
+          <button type="button" id="editAddReferenceBtn" class="btn-pending">
             <i class="bi bi-image"></i> 加入圖片
           </button>
         <div id="editReferenceContainer" class="d-flex flex-wrap gap-2 mb-2 mt-2"></div>
