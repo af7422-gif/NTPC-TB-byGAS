@@ -1,0 +1,256 @@
+<script>
+/**
+1.銷案清單相關函數
+2.由api_index.html呼叫
+ */
+
+//==========渲染篩選表格==========
+function onStatusOrUnitFilterChange() {
+  renderTableWithFilter();
+}
+
+//========== 建立銷案表格，包含點擊 TB 編號可開啟審核表單 ==========
+function renderTableWithFilter() {
+  if (!fullDisposalData || fullDisposalData.length <= 1) {
+    return; // 資料尚未載入
+  }
+
+  const displayColumns = ["管理單位", "申請時間", "個案類型", "總編號", "個案姓名", "結束治療日", "銷案原因" , "銷案期限", "審核狀態"];
+  const [headers, ...rows] = fullDisposalData;
+  const colIndexes = displayColumns.map(col => headers.indexOf(col));
+  const tbIndex = headers.indexOf("總編號");
+  const unitIndex = headers.indexOf("管理單位");
+  const statusIndex = headers.indexOf("審核狀態");
+  const applicantIdx = headers.indexOf("申請人");
+  const tutorIndex = headers.indexOf("輔導員");
+
+  const unit = document.getElementById("userUnit").innerText.trim();
+  const selectedUnit = document.getElementById("unitFilter").value;
+  const tutorFilter = document.getElementById("tutorFilter");
+  const tutorValue = tutorFilter && tutorFilter.value ? tutorFilter.value : null;
+  const applicantFilter = document.getElementById("applicantFilter");
+  const applicantValue = applicantFilter && applicantFilter.value ? applicantFilter.value : null;
+
+  let displayRows = rows;
+
+  // ===== 篩選條件 =====
+  const caseTypeValue = document.getElementById("caseTypeFilter")?.value || "all";
+  const caseTypeIndex = headers.indexOf("個案類型");
+  if (caseTypeValue !== "all" && caseTypeIndex !== -1) {
+    displayRows = displayRows.filter(row => String(row[caseTypeIndex]).trim() === caseTypeValue);
+  }
+
+  if (unit !== "衛生局") {
+    displayRows = displayRows.filter(row => String(row[unitIndex]).trim() === unit);
+  } else if (selectedUnit && selectedUnit !== "🌐 全部") {
+    displayRows = displayRows.filter(row => String(row[unitIndex]).trim() === selectedUnit);
+  }
+
+  if (tutorFilter && tutorFilter.offsetParent !== null && tutorValue && tutorValue !== "🌐 全部") {
+    displayRows = displayRows.filter(row => String(row[tutorIndex]).trim() === tutorValue);
+  }
+
+  if (applicantFilter && applicantFilter.offsetParent !== null && applicantValue && applicantValue !== "all") {
+    displayRows = displayRows.filter(row => String(row[applicantIdx]).trim() === applicantValue);
+  }
+
+  const statusFilter = document.getElementById("statusFilter").value;
+  displayRows = displayRows.filter(row => {
+    const status = normalizeStatus(row[statusIndex]);
+    if (statusFilter === "all") return true;
+    if (statusFilter === "notpass") {
+      return ["not_processed", "pending", "patch", "rejected", "cancelled"].includes(status);
+    }
+    return status === statusFilter;
+  });
+
+  // 總編號搜尋
+  const tbSearchValue = document.getElementById("tbSearchInput")?.value.trim();
+  if (tbSearchValue) {
+    displayRows = displayRows.filter(row => {
+      const tbCol = row[tbIndex] ?? "";
+      return tbCol && tbCol.toString().indexOf(tbSearchValue) !== -1;
+    });
+  }
+
+  // ===== 沒資料 =====
+  const tableArea = document.getElementById("tableArea");
+  const caseCountDiv = document.getElementById('caseCount');
+  if (displayRows.length === 0) {
+    tableArea.innerText = "無個案";
+    if (caseCountDiv) caseCountDiv.innerText = "";
+    return;
+  }
+
+  // ===== 排序 =====
+  if (currentSortCol !== null) {
+    let sortIdx = colIndexes[currentSortCol];
+    displayRows.sort((a, b) => {
+      let vA = a[sortIdx] ?? "";
+      let vB = b[sortIdx] ?? "";
+      if (displayColumns[currentSortCol] === "審核狀態") {
+      let orderA = statusOrder(normalizeStatus(vA));
+      let orderB = statusOrder(normalizeStatus(vB));
+        return currentSortDir === 'asc' ? orderA - orderB : orderB - orderA;
+      }
+      let result = smartCompare(vA, vB);
+      return currentSortDir === 'asc' ? result : -result;
+    });
+  }
+
+  // ===== 顯示筆數 =====
+  // currentLimit 設定在 js_globals
+
+  if (caseCountDiv) {
+    if (displayRows.length > currentLimit) {
+      caseCountDiv.innerText = `僅顯示前 ${currentLimit} 筆，共 ${displayRows.length} 筆`;
+    } else {
+      caseCountDiv.innerText = `共 ${displayRows.length} 筆`;
+    }
+  }
+
+  // ===== 限制前 currentLimit 筆 =====
+  const limitedRows = displayRows.slice(0, currentLimit);
+
+  // ===== 建立表格 =====
+  const table = document.createElement("table");
+  table.border = "1";
+  table.style.width = "100%";
+  table.style.borderCollapse = "collapse";
+
+  // Thead
+  const thead = table.createTHead();
+  const headerRow = thead.insertRow();
+  displayColumns.forEach((h, i) => {
+    const th = document.createElement("th");
+    th.innerText = h;
+    th.classList.add('sortable');
+    if (currentSortCol === i) {
+      th.classList.add(currentSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+    th.onclick = () => {
+      if (currentSortCol === i) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortCol = i;
+        currentSortDir = 'asc';
+      }
+      renderTableWithFilter();
+    };
+    headerRow.appendChild(th);
+  });
+
+  // Tbody
+  const tbody = table.createTBody();
+  limitedRows.forEach(row => {
+    const tr = tbody.insertRow();
+    colIndexes.forEach((idx, i) => {
+      const td = tr.insertCell();
+      const cell = row[idx];
+      let showHTML = cell;
+
+      if (displayColumns[i] === "總編號") {
+        const tb = row[tbIndex];
+        const applyTime = row[headers.indexOf("申請時間")];
+
+        const caseKey = `${tb}__${applyTime}`;
+
+        td.textContent = tb;
+        td.style.cursor = "pointer";
+        td.style.color = "#007BFF";
+        td.style.textDecoration = "underline";
+        td.onclick = function () {
+          openReviewForm(caseKey);
+        };
+      }
+
+      else if (displayColumns[i] === "審核狀態") {
+        td.innerHTML = renderStatus(cell);
+      }
+      else {
+        td.innerText = cell;
+      }
+    });
+  });
+
+  tableArea.innerHTML = "";
+  tableArea.appendChild(table);
+  lucide.createIcons();
+  // ===== 載入更多按鈕 =====
+  if (displayRows.length > currentLimit) {
+    const btnDiv = document.createElement("div");
+    btnDiv.style.textAlign = "center";
+    btnDiv.style.margin = "12px 0";
+    btnDiv.innerHTML = `<button class="btn btn-outline-primary" onclick="loadMoreRows()">載入更多</button>`;
+    tableArea.appendChild(btnDiv);
+  }
+}
+
+// ==========載入更多筆數===========
+function loadMoreRows() {
+  currentLimit += 100; // 每次再多載 100 筆
+  renderTableWithFilter();
+}
+
+//==========清除篩選==========
+function clearFilterBar() {
+  // unit 決定清除方式
+  const unit = document.getElementById("userUnit").innerText.trim();
+
+  document.getElementById("caseTypeFilter").value = "all";
+  document.getElementById("statusFilter").value = "all";
+  if (unit === "衛生局") {
+  document.getElementById("unitFilter").value = "🌐 全部";
+  document.getElementById("tutorFilter").value = "🌐 全部";
+  }
+  if (unit !== "衛生局") {
+  document.getElementById("applicantFilter").value = "all";
+  }
+  // 查詢欄直接清空
+  document.getElementById("tbSearchInput").value = "";
+  // 重新渲染
+  renderTableWithFilter();
+}
+
+//==========重整資料==========
+function reloadDisposalList() {
+  disposalRequestActive = true;
+  const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+  loadingModal.show();
+
+  timeoutId = setTimeout(function() {
+  disposalRequestActive = false; // 標記已逾時，忽略回傳
+  loadingModal.hide();
+  setTimeout(() => {
+  showCustomAlertModal("重新整理逾時，請再試一次");
+  }, 300);
+  }, 20000);
+
+  google.script.run.withSuccessHandler(function(data) {
+    if (!disposalRequestActive) return; // 超時後 ignore 這個回傳
+    clearTimeout(timeoutId);
+
+    // 先關掉 loadingModal
+    loadingModal.hide();
+
+    // 等 loadingModal 完全關閉後再繼續動作
+    const handler = () => {
+    document.getElementById("loadingModal").removeEventListener("hidden.bs.modal", handler);
+
+    fullDisposalData = data.all;
+    accountData = data.accounts;
+    cachedDisposalData.questions = data.questions;
+    cachedDisposalData.examRecords = data.examRecords;
+
+    allTBs = fullDisposalData.slice(1).map(row => ({
+      tb: row[fullDisposalData[0].indexOf("總編號")],
+      endDate: row[fullDisposalData[0].indexOf("結束治療日")]
+    }));
+    renderTableWithFilter();
+    checkAndShowMsgOnLoad();
+    };
+
+    document.getElementById("loadingModal").addEventListener("hidden.bs.modal", handler);
+  }).getDisposalListData();
+}
+</script>
