@@ -1,0 +1,105 @@
+<script>
+// 🔹 當衛生局訊息模塊開啟時，自動刷新題庫資料
+document.getElementById("msgModal_bureau").addEventListener("shown.bs.modal", () => {
+  renderBureauQuestionBlocks();
+});
+
+// 點相機 → 開啟 modal
+document.addEventListener("click", function (e) {
+  const icon = e.target.closest(".pasteImageIcon");
+  if (!icon) return;
+
+  currentPasteRow = icon.closest(".review-item-row");
+  tempBase64Image = "";
+
+  document.getElementById("pasteImageArea").innerHTML = "請在此處按 Ctrl+V 貼上圖片";
+  document.getElementById("pasteImagePreview").style.display = "none";
+
+  bootstrap.Modal
+    .getOrCreateInstance(document.getElementById("pasteImageModal"))
+    .show();
+});
+
+// 處理貼上事件 → 預覽但不儲存
+document.getElementById("pasteImageArea").addEventListener("paste", function (event) {
+  event.preventDefault(); // 防止圖貼到 contenteditable 裡
+
+  const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+  for (const item of items) {
+    if (item.type.indexOf("image") !== -1) {
+      const blob = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        tempBase64Image = e.target.result;
+        const preview = document.getElementById("pasteImagePreview");
+        preview.src = tempBase64Image;
+        preview.style.display = "block";
+      };
+      reader.readAsDataURL(blob);
+    }
+  }
+});
+
+
+// 自動調整表單內文本高度
+['reviewModal', 'reviewReadonlyModal', 'editorModal', 'reviewPassedModal'].forEach(modalId => {
+  const modalEl = document.getElementById(modalId);
+  if (modalEl) {
+    modalEl.addEventListener('shown.bs.modal', function () {
+      modalEl.querySelectorAll('textarea').forEach(ta => autoGrow(ta));
+    });
+  }
+});
+
+//移除圖片
+document.getElementById("removePastedImage").addEventListener("click", function () {
+ // console.log("🧹 點擊了移除圖片");
+  // 1. 清除 modal 裡的預覽圖
+  tempBase64Image = "";
+  const preview = document.getElementById("pasteImagePreview");
+  preview.src = "";
+  preview.style.display = "none";
+
+  // 2. 清除 modal 的畫布內容
+  const pasteArea = document.getElementById("pasteImageArea");
+  pasteArea.innerHTML = "請在此處按 Ctrl+V 貼上圖片";
+
+  // 3. 如果有主畫面上的 row，清掉預覽圖與資料屬性
+  if (currentPasteRow) {
+    const previewImg = currentPasteRow.querySelector(".image-preview");
+    if (previewImg) {
+      previewImg.src = "";
+      previewImg.classList.add("d-none");
+    }
+    delete currentPasteRow.dataset.imageBase64;
+    delete currentPasteRow.dataset.imageUrl;
+    currentPasteRow.dataset.imageRemoved = "true";
+  }
+
+  // 4. 關閉 modal
+  bootstrap.Modal.getOrCreateInstance(document.getElementById("pasteImageModal")).hide();
+});
+
+
+
+// 按下「使用此圖片」才正式儲存
+document.getElementById("confirmPasteImage").addEventListener("click", function () {
+  if (!currentPasteRow) return;
+  if (tempBase64Image) {
+    currentPasteRow.dataset.imageBase64 = tempBase64Image;
+  // ✅ 避免找不到 img 的錯誤情況
+  const previewImg = currentPasteRow.querySelector(".image-preview");
+  if (previewImg && tempBase64Image) {
+    previewImg.src = tempBase64Image;
+    previewImg.classList.remove("d-none"); // ⬅️ 防止一開始被隱藏
+    previewImg.style.display = "inline-block";
+  }
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById("pasteImageModal")).hide();
+});
+
+//監聽申請表單模塊關閉時清空表單內容
+document.getElementById('disposalModal').addEventListener('hidden.bs.modal', function (event) {
+  clearDisposalForm();
+});
+</script>
