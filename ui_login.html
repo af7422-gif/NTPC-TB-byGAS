@@ -2,83 +2,209 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
   <base target="_top">
   <style>
     /* 使用變數局部化與父層鎖定來防止樣式污染 */
     :root {
-      --tech-cyan: #00f2ff;
-      --tech-blue: #0066ff;
-      --tech-green: #00ff88;
-      --tech-emerald: #00a368;
-      --tech-red: #ff4d4d;
-      --soft-border: rgba(0, 242, 255, 0.2); /* 調低邊框銳利度 */
-      --placeholder-light: rgba(255, 255, 255, 0.6);
+        --bg-main: #0f172a;
+        --bg-gradient: linear-gradient(135deg, #064e3b 0%, #0f172a 100%);
+        --card-bg: rgba(15, 23, 42, 0.75);
+        --bg-gradient: linear-gradient(135deg, #064e3b 0%, #0f172a 100%);
+        --primary: #0ea5e9; 
+        --accent: #10b981;  
+        --glass-bg: rgba(255, 255, 255, 0.08);
+        --glass-border: rgba(255, 255, 255, 0.15);
+        --primary-soft: #60a5fa;
+        --accent: #22c55e;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --border-soft: rgb(148 163 184);
     }
 
-    .login-body {
-      position: relative;
+    /* =========================================
+       2. 背景設計 (純 CSS 幾何方塊)
+       ========================================= */
+    body.login-body {
       min-height: 100vh;
-      min-height: 100svh;
-      overflow: hidden;
       display: flex;
       justify-content: center;
       align-items: center;
-      background: #000;
       margin: 0;
+      background: var(--bg-gradient);
+      font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+      overflow: hidden;
     }
 
-    .login-bg {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center;
+    /* =========================================
+       2. 故事化背景設計 (電路、肺部、團隊、科技)
+       ========================================= */
+    .story-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
       z-index: 0;
-      filter: brightness(0.9);
+      overflow: hidden;
+      pointer-events: none; /* 確保不會擋到點擊事件 */
     }
+
+    /* 元素的共通漂浮動畫設定 */
+    .bg-element {
+      position: absolute;
+      opacity: 0.15; /* 保持半透明，襯托前景 */
+      transition: all 0.5s ease;
+    }
+
+    /* 元素 1：一般肺部 (醫療本質) - 位於左下角 */
+    .lung-normal {
+      bottom: 2vh;
+      left: 2vw;
+      width: 40vw;
+      max-width: 450px;
+      animation: floatBreath 8s ease-in-out infinite;
+    }
+
+    /* 元素 2：團隊網絡 (人員協作) - 位於右上角 */
+    .team-network {
+      top: -2vh;
+      right: 2vw;
+      width: 35vw;
+      max-width: 400px;
+      animation: floatHover 12s ease-in-out infinite reverse;
+      opacity: 0.18; 
+    }
+
+    /* 元素 3：科技晶片/大腦 (系統運算) - 位於右下角並往左偏移 */
+    .tech-core {
+      bottom: 8vh;
+      right: 26vw; /* 將晶片往左移，避免與右上角的團隊網路垂直擁擠 */
+      width: 30vw;
+      max-width: 350px;
+      animation: floatTech 10s ease-in-out infinite;
+    }
+
+    /* --- 背景電路傳輸動畫設定 --- */
+    .circuit-bg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0.7;
+    }
+
+    .track-line {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.04); /* 暗色軌道 */
+      stroke-width: 2;
+    }
+
+    .electric-flow {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 3;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 8px var(--accent)); /* 發光效果 */
+      /* 第一個值是電流長度，第二個值是空白間隔 (設定極大確保一次只有一段電流) */
+      stroke-dasharray: 150 4000; 
+      animation: electricMove 6s linear infinite;
+    }
+
+    /* 讓不同電流有不同的顏色與速度 */
+    .delay-0 { animation-duration: 7s; }
+    .delay-1 { animation-duration: 9s; animation-delay: -2s; stroke: var(--primary); filter: drop-shadow(0 0 8px var(--primary)); }
+    .delay-2 { animation-duration: 8s; animation-delay: -5s; }
+    .delay-3 { animation-duration: 6.5s; animation-delay: -1s; stroke: var(--primary); filter: drop-shadow(0 0 8px var(--primary)); }
+
+    @keyframes electricMove {
+      from { stroke-dashoffset: 4150; } /* 從軌道起點外開始 */
+      to { stroke-dashoffset: 0; }      /* 跑到軌道終點 */
+    }
+
+    /* --- 1. 定義肺部專用的呼吸動畫 (擴張再收縮) --- */
+    @keyframes lungBreath {
+      0%, 100% { 
+        transform: scale(1); 
+        opacity: 0.15;
+      }
+      50% { 
+        transform: scale(1.08); /* 擴張 8% */
+        opacity: 0.25;          /* 呼吸時亮度微增 */
+      }
+    }
+
+    /* --- 2. 保留原有的漂浮動畫 (供其他元素使用) --- */
+    @keyframes floatHover {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(-10px, 15px); }
+    }
+
+    @keyframes floatTech {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+
+    /* --- 3. 元素定位與動畫指定 --- */
+
+    /* 肺部：改用 lungBreath 且設定中心點 */
+    .lung-normal {
+      bottom: 2vh;
+      left: 2vw;
+      width: 40vw;
+      max-width: 450px;
+      animation: lungBreath 8s ease-in-out infinite;
+      transform-origin: center center; /* 確保從肺部中心向外擴張 */
+    }
+
+    /* 團隊網絡：維持原本的 floatHover */
+    .team-network {
+      top: -2vh;
+      right: 2vw;
+      width: 35vw;
+      max-width: 400px;
+      animation: floatHover 12s ease-in-out infinite reverse;
+      opacity: 0.18; 
+    }
+
+    /* 科技晶片：維持原本的 floatTech */
+    .tech-core {
+      bottom: 8vh;
+      right: 26vw; 
+      width: 30vw;
+      max-width: 350px;
+      animation: floatTech 10s ease-in-out infinite;
+    }
+
 
     /* 容器樣式 */
     .login-container {
-      position: relative;
-      z-index: 1;
-      transform: translateX(32px);
-      background: transparent !important;
-      backdrop-filter: none !important;
-      border: none !important;
-      box-shadow: none !important;
-      width: 90vw;
-      max-width: 370px;
-      min-width: 300px;
-      padding: 50px 30px;
+        position: relative;
+        z-index: 1;
+        backdrop-filter: blur(18px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        border-radius: 16px;
+        width: 90vw;
+        max-width: 500px;
+        min-width: 400px;
+        padding: 50px 30px 30px 30px;
     }
 
     /* 標題 */
     .login-container .login-title {
-      font-size: 2.2rem;
-      font-weight: 900;
-      color: #fff;
-      letter-spacing: 0.15em;
-      margin-bottom: 25px;
-      text-align: center;
-      background: linear-gradient(to bottom, #fff 40%, var(--tech-cyan) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 15px rgba(0, 242, 255, 0.4));
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: var(--text-main);
+        padding: 0 0 30px 0;
+        text-align: center;
+        letter-spacing: 1.5px;
+        font-weight: 900;
     }
 
     .login-container .form-label {
-      color: var(--tech-cyan);
-      font-size: 1rem;
+      color: var(--text-muted);
+      font-size: 1.2rem;
       font-weight: 700;
-      letter-spacing: 2px;
+      letter-spacing: 1px;
       text-transform: uppercase;
       margin-bottom: 8px;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      text-shadow: none;
     }
 
     /* 自動填入修正 */
@@ -99,61 +225,22 @@
     .login-container .form-control {
       background: transparent !important;
       border: none !important;
-      border-bottom: 1px solid rgba(0, 242, 255, 0.4) !important;
+      border-bottom: 1px solid var(--border-soft) !important;
       border-radius: 0 !important;
-      color: #fff !important;
+      color: var(--text-main) !important;
       padding: 10px 5px;
       transition: all 0.4s ease;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
       font-size: 0.95rem;
     }
 
     .login-container .form-control:focus {
       box-shadow: none !important;
-      border-bottom-color: var(--tech-cyan) !important;
-      background: rgba(0, 242, 255, 0.05) !important;
+      border-bottom-color:  var(--primary) !important;
+      background: rgba(59,130,246,0.08) !important;
     }
 
     .login-container .form-control::placeholder {
       color: var(--placeholder-light);
-    }
-
-    /* 按鈕共用基礎樣式與特效 */
-    .btn-tech {
-      border: none;
-      border-radius: 4px;
-      color: #fff;
-      font-weight: 700;
-      text-transform: uppercase;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.2s ease;
-      cursor: pointer;
-      z-index: 1;
-    }
-
-    /* 按下時的物理壓下特效 */
-    .btn-tech:active {
-      transform: scale(0.96) translateY(2px);
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-      filter: brightness(0.9);
-    }
-
-    .btn-tech::before {
-      content: "";
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 0;
-      height: 0;
-      background: rgba(255, 255, 255, 0.6);
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      z-index: -1;
-    }
-
-    .btn-tech:hover::before {
-      animation: flare-spread 0.4s ease-out forwards;
     }
 
     @keyframes flare-spread {
@@ -163,17 +250,28 @@
 
     /* 登入按鈕 */
     #loginBtn {
-      background: linear-gradient(90deg, var(--tech-blue), var(--tech-cyan));
-      padding: 12px 0;
-      font-size: 1.15rem;
-      letter-spacing: 8px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 102, 255, 0.3);
-      margin-top: 25px;
+        background: #326e95;
+        border: none;
+        color: white;
+        box-shadow: 0 4px 15px rgba(50, 110, 149, 0.4);
+        padding: 12px 0;
+        font-size: 1.15rem;
+        letter-spacing: 8px;
+        margin-top: 25px;
+    }
+
+    #loginBtn:hover {
+      transform: translateY(-2px);
+      background: #3a7fae; /* hover 時稍微提亮 */
+      box-shadow: 0 6px 20px rgba(50, 110, 149, 0.6);
+    }
+
+    #loginBtn:active {
+      transform: translateY(1px);
     }
 
     /* 送出申請按鈕 */
     #submitRegBtn {
-      background: linear-gradient(90deg, var(--tech-emerald), var(--tech-green));
       padding: 12px 0;
       font-size: 1rem;
       letter-spacing: 4px;
@@ -181,24 +279,25 @@
     }
 
     .login-container .login-btn-secondary {
-      background: transparent;
-      border: 1px solid rgba(0, 242, 255, 0.3);
-      color: rgba(255, 255, 255, 0.8);
-      font-size: 0.9rem;
-      margin-top: 15px;
-      margin-bottom: 25px;
-      transition: 0.3s;
+        background: #7d7d7da6;
+        padding: 10px 0;
+        border: transparent;
+        color: white;
+        font-size: 0.9rem;
+        margin-top: 15px;
+        margin-bottom: 25px;
+        transition: 0.3s;
     }
 
-    .login-container .login-btn-secondary:hover {
-      background: rgba(0, 242, 255, 0.1);
-      border-color: var(--tech-cyan);
-      color: #fff;
+    login-btn-secondary:hover {
+      background: #1e1e1ea6;
+      border: transparent;
+      color: white;
     }
 
     /* 註冊狀態提示文字 */
     #registerStatus {
-      color: var(--tech-red);
+      color: #ff6464;
       font-size: 0.9rem;
       margin-top: 15px;
       font-weight: 500;
@@ -214,7 +313,7 @@
 
     /* 申請帳號 Modal 樣式優化 - 調整底色變淺且減少銳利感 */
     .login-register-content {
-      background: rgba(15, 32, 53, 0.85) !important; /* 底色調淺並增加透明感 */
+      background: #25384fd9 !important;
       backdrop-filter: blur(12px); /* 增加模糊度讓視覺更柔和 */
       border: 1px solid var(--soft-border) !important; /* 使用較淡的邊框顏色 */
       box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5) !important;
@@ -256,26 +355,158 @@
 
     .login-container #progressWrapper {
       width: 100%;
-      max-width: 300px;
+      max-width: 400px;
       margin: 12px auto;
     }
     .login-container .progress {
-      height: 2px;
-      background-color: rgba(255,255,255,0.1);
+      height: 12px;
+      border-radius: 999px;
+
+      background: rgba(0, 0, 0, 0.15);   /* 更穩定 */
+      border: 1px solid rgba(0,0,0,0.2); /* ✨ 這條很關鍵 */
+
+      overflow: hidden;
     }
     .login-container .progress-bar {
-      background-color: var(--tech-cyan);
+      position: relative;
+      overflow: hidden;
+
+      background: linear-gradient(90deg, #326d94);
+    }
+    .login-container .progress-bar::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -40%;
+      height: 100%;
+      width: 40%;
+
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255,255,255,0.5),
+        transparent
+      );
+
+      animation: loading-flow 1.5s infinite;
+    }
+    @keyframes loading-flow {
+      0% { left: -40%; }
+      100% { left: 100%; }
     }
     .login-container #progressText {
       text-align: center;
-      color: var(--tech-cyan);
-      font-size: 0.8rem;
-      margin-top: 8px;
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-top: 18px;
     }
   </style>
 </head>
 <body class="login-body">
-  <img class="login-bg" src="https://lh3.googleusercontent.com/d/1CpBzE2lyTvASEn1F3kywQIQRqvOGX5XR" alt="Background">
+  <!-- 故事化視覺背景 -->
+  <!-- 故事化視覺背景 -->
+  <div class="story-bg">
+    
+    <!-- === 背景：系統電路傳輸特效 === -->
+    <svg class="circuit-bg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- 定義 4 條具有直角科技感的電路軌道 -->
+        <path id="path1" d="M 150,1150 L 150,850 L 600,850 L 600,350 L 950,350 L 950,-50" />
+        <path id="path2" d="M -50,650 L 350,650 L 350,950 L 1400,950 L 1400,1150" />
+        <path id="path3" d="M 1970,750 L 1550,750 L 1550,450 L 950,450 L 950,-50" />
+        <path id="path4" d="M 1970,150 L 1250,150 L 1250,800 L 1750,800 L 1750,1150" />
+      </defs>
+      
+      <!-- 繪製底部軌道 -->
+      <use href="#path1" class="track-line" />
+      <use href="#path2" class="track-line" />
+      <use href="#path3" class="track-line" />
+      <use href="#path4" class="track-line" />
+
+      <!-- 繪製流動的電流 (附帶不同延遲與速度) -->
+      <use href="#path1" class="electric-flow delay-0" />
+      <use href="#path2" class="electric-flow delay-1" />
+      <use href="#path3" class="electric-flow delay-2" />
+      <use href="#path4" class="electric-flow delay-3" />
+    </svg>
+
+    <!-- === 元素 1：一般肺部 (左下角) === -->
+    <svg class="bg-element lung-normal" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <!-- 左肺葉 (實心形狀，修正輪廓更接近真實解剖圖) -->
+      <path d="M 85,50 C 40,30 10,80 15,130 C 20,180 70,190 85,160 C 95,140 95,110 85,90 C 75,70 85,60 85,50 Z" fill="var(--primary)"/>
+      <!-- 右肺葉 (實心形狀) -->
+      <path d="M 115,50 C 160,30 190,80 185,130 C 180,180 130,190 115,160 C 105,140 105,110 115,90 C 125,70 115,60 115,50 Z" fill="var(--accent)"/>
+
+      <!-- 氣管與支氣管 (使用淺白色/半透明來疊加在肺部上，做出內部構造與分支感) -->
+      <g stroke="rgba(255, 255, 255, 0.9)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <!-- 主氣管與左右主分叉 -->
+        <path d="M 100 10 L 100 70 L 43 115 M 100 70 L 160 116" stroke-width="12" />
+        <!-- 左側支氣管小分支 -->
+        <path d="M 75 90 L 40 90 M 75 90 L 60 140" stroke-width="10" />
+        <!-- 右側支氣管小分支 -->
+        <path d="M 125,90 L 160,90 M 125,90 L 140,140" stroke-width="10" />
+      </g>
+    </svg>
+
+    <!-- === 元素 2：團隊合作網絡 (右上角) === -->
+    <svg class="bg-element team-network" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <!-- 系統資料傳遞連結線 -->
+      <path d="M 100 68 L 100 95 L 67 113" stroke="var(--primary)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 100 68 L 100 95 L 133 113" stroke="var(--primary)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- 頂部：核心審核者 / 主管 -->
+      <g transform="translate(100, 46)">
+        <circle cx="0" cy="0" r="22" fill="none" stroke="var(--accent)" stroke-width="3"/>
+        <circle cx="0" cy="-5" r="7" fill="var(--accent)"/>
+        <path d="M-12 11 C-12 3, 12 3, 12 11" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
+      </g>
+
+      <!-- 左下：團隊成員 / 申請端 -->
+      <g transform="translate(50, 130)">
+        <circle cx="0" cy="0" r="22" fill="none" stroke="var(--primary)" stroke-width="3"/>
+        <circle cx="0" cy="-5" r="7" fill="var(--primary)"/>
+        <path d="M-12 11 C-12 3, 12 3, 12 11" fill="none" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      </g>
+
+      <!-- 右下：團隊成員 / 協辦端 -->
+      <g transform="translate(150, 130)">
+        <circle cx="0" cy="0" r="22" fill="none" stroke="var(--primary)" stroke-width="3"/>
+        <circle cx="0" cy="-5" r="7" fill="var(--primary)"/>
+        <path d="M-12 11 C-12 3, 12 3, 12 11" fill="none" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      </g>
+    </svg>
+
+    <!-- === 元素 3：科技晶片/大腦 (右下角) === -->
+    <svg class="bg-element tech-core" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <!-- 晶片外殼與核心 -->
+      <rect x="60" y="60" width="80" height="80" rx="12" fill="none" stroke="var(--primary)" stroke-width="4"/>
+      <rect x="75" y="75" width="50" height="50" rx="8" fill="none" stroke="var(--accent)" stroke-width="3"/>
+      <circle cx="100" cy="100" r="8" fill="var(--accent)"/>
+      
+      <!-- 頂部接腳 -->
+      <line x1="80" y1="60" x2="80" y2="35" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="100" y1="60" x2="100" y2="25" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="120" y1="60" x2="120" y2="35" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <!-- 底部接腳 -->
+      <line x1="80" y1="140" x2="80" y2="165" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="100" y1="140" x2="100" y2="175" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="120" y1="140" x2="120" y2="165" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <!-- 左側接腳 -->
+      <line x1="60" y1="80" x2="35" y2="80" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="60" y1="100" x2="25" y2="100" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="60" y1="120" x2="35" y2="120" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <!-- 右側接腳 -->
+      <line x1="140" y1="80" x2="165" y2="80" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="140" y1="100" x2="175" y2="100" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="140" y1="120" x2="165" y2="120" stroke="var(--primary)" stroke-width="4" stroke-linecap="round"/>
+      
+      <!-- 末端連接口 (圓點) -->
+      <circle cx="100" cy="25" r="5" fill="var(--accent)"/>
+      <circle cx="25" cy="100" r="5" fill="var(--accent)"/>
+      <circle cx="175" cy="100" r="5" fill="var(--accent)"/>
+      <circle cx="100" cy="175" r="5" fill="var(--accent)"/>
+    </svg>
+  </div>
 
   <div class="login-container">
     <div class="login-title">銷案審核助手</div>
@@ -291,12 +522,20 @@
         <input type="password" class="form-control" id="password" placeholder="請輸入密碼">
       </div>
 
-      <button type="submit" id="loginBtn" class="btn btn-primary w-100 mb-2 btn-tech">登入</button>
-      <button type="button"
-              class="btn btn-outline-secondary w-100 login-btn-secondary"
-              onclick="openModal()">
-        申請帳號
-      </button>
+      <button type="submit" id="loginBtn" class="btn btn-tech w-100 mb-2 ">登入</button>
+      <div class="d-flex gap-2">
+        <button type="button"
+                class="btn btn-outline-secondary login-btn-secondary flex-fill"
+                onclick="openModal()">
+          申請帳號
+        </button>
+
+        <button type="button"
+                class="btn btn-outline-secondary login-btn-secondary flex-fill"
+                onclick="openForgotModal()">
+          忘記密碼
+        </button>
+      </div>
     </form>
 
     <div id="progressWrapper">
@@ -312,10 +551,10 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content px-3 py-2 login-register-content">
         <div class="modal-header border-0 pb-0 justify-content-center" style="flex-direction:column;">
-          <span style="font-size:3.4rem; color:var(--tech-cyan); margin-top:10px; margin-bottom:5px;">
+          <span style="font-size:3.4rem; color:white; margin-top:10px; margin-bottom:5px;">
             <i class="material-icons" style="font-size:3.2rem; vertical-align:middle;">person_add_alt_1</i>
           </span>
-          <h5 class="modal-title w-100 text-center" style="font-weight:700; color:var(--tech-cyan); letter-spacing:1px;">申請帳號</h5>
+          <h5 class="modal-title w-100 text-center" style="font-weight:700; color:white; letter-spacing:1px;">申請帳號</h5>
         </div>
         <div class="modal-body pt-0">
           <form id="registerForm" onsubmit="event.preventDefault();submitRegister();">
@@ -350,11 +589,11 @@
             </div>
             <div class="form-check mt-3 mb-4">
               <input class="form-check-input" type="checkbox" id="agreeRule">
-              <span class="ms-1">我已閱讀並同意<a href="#" onclick="openRuleModal(); return false;" style="color:var(--tech-cyan)">使用規範與注意事項</a></span>
+              <span class="ms-1">我已閱讀並同意<a href="#" onclick="openRuleModal(); return false;" style="color:aqua">使用規範與注意事項</a></span>
             </div>
             <div class="d-grid gap-2 mb-2">
               <button type="submit" id="submitRegBtn" class="btn btn-success btn-tech">送出申請</button>
-              <button type="button" class="btn btn-outline-light py-2" onclick="closeModal()">取消</button>
+              <button type="button" class="btn btn-outline-light py-2" onclick="closeModal()">關閉</button>
             </div>
             <p id="registerStatus" class="text-center"></p>
           </form>
@@ -414,7 +653,7 @@
 
       <!-- 關閉鍵在正下方 -->
       <div class="modal-footer border-0 justify-content-center">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">
+        <button class="btn-cancel" data-bs-dismiss="modal">
           關閉
         </button>
       </div>
@@ -423,7 +662,50 @@
   </div>
 </div>
 
+<!-- Forgot Password Modal -->
+<div class="modal fade" id="forgotModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content px-3 py-2 login-register-content">
 
+      <div class="modal-header border-0 pb-0 justify-content-center" style="flex-direction:column;">
+        <span style="font-size:3.4rem; color:white; margin-top:10px; margin-bottom:5px;">
+          <i class="material-icons" style="font-size:3.2rem;">lock_reset</i>
+        </span>
+        <h5 class="modal-title w-100 text-center" style="font-weight:700; color:white;">
+          忘記密碼
+        </h5>
+      </div>
+
+      <div class="modal-body pt-0">
+        <form onsubmit="event.preventDefault();submitForgotPassword();">
+
+          <div class="mb-2">
+            <label class="form-label mt-3">公務帳號</label>
+            <input type="text" class="form-control" id="forgotAccount" placeholder="輸入公務帳號">
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label">姓名</label>
+            <input type="text" class="form-control" id="forgotName" placeholder="輸入姓名">
+          </div>
+
+          <div class="d-grid gap-2 mt-3">
+            <button type="submit" class="btn btn-success btn-tech">
+              送出
+            </button>
+            <button type="button" class="btn btn-outline-light py-2" onclick="closeForgotModal()">
+              關閉
+            </button>
+          </div>
+
+          <p id="forgotStatus" class="text-center mt-2"></p>
+
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
   <script>
 
   let progress = 0;
@@ -495,6 +777,7 @@
     document.getElementById("account").disabled = state;
     document.getElementById("password").disabled = state;
     document.querySelector('button[onclick="openModal()"]').disabled = state;
+    document.querySelector('button[onclick="openForgotModal()"]').disabled = state;
   }
 
   function checkAllReady() {
@@ -506,6 +789,7 @@
         document.getElementById("account").disabled = false;
         document.getElementById("password").disabled = false;
         document.querySelector('button[onclick="openModal()"]').disabled = false;
+        document.querySelector('button[onclick="openForgotModal()"]').disabled = false;
       }, 450);
     }
   }
@@ -562,6 +846,7 @@
         } else {
           const diffMs = new Date() - new Date(lastLogin);
           const daysDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          
           if (daysDiff <= 2) {
             numQuestions = 3;
           } else if (daysDiff <= 5) {
@@ -569,6 +854,7 @@
           } else {
             numQuestions = 5;
           }
+          console.log("相距天數：" , daysDiff , "出題數：" ,numQuestions);
         }
 
         showExamSection();
@@ -823,6 +1109,65 @@
           document.getElementById("registerStatus").innerText = "帳號重複，申請失敗！";
         }
       }).registerAccount({unit, acc, pwd, name, ext});
+    }
+    //開啟忘記密碼模塊
+    function openForgotModal() {
+      document.getElementById("forgotStatus").innerText = "";
+      const modal = new bootstrap.Modal(document.getElementById("forgotModal"));
+      modal.show();
+    }
+    //關閉忘記密碼模塊
+    function closeForgotModal() {
+      const modalEl = document.getElementById("forgotModal");
+      const modalObj = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+      modalObj.hide();
+
+      document.getElementById("forgotAccount").value = "";
+      document.getElementById("forgotName").value = "";
+      document.getElementById("forgotStatus").innerText = "";
+    }
+    //提交忘記密碼表單
+    function submitForgotPassword() {
+      const acc = document.getElementById("forgotAccount").value.trim();
+      const name = document.getElementById("forgotName").value.trim();
+      const statusEl = document.getElementById("forgotStatus");
+
+      // 🔒 按鈕防連點（抓 submit 按鈕）
+      const btn = document.querySelector('#forgotModal button[type="submit"]');
+      btn.disabled = true;
+      setTimeout(() => btn.disabled = false, 1000);
+
+      // 1️⃣ 必填檢查
+      if (!acc || !name) {
+        statusEl.style.color = "#ff6464";
+        statusEl.innerText = "請填寫所有欄位";
+        return;
+      }
+
+      // 2️⃣ 帳號格式（英數）
+      if (!/^[a-zA-Z0-9]+$/.test(acc)) {
+        statusEl.style.color = "#ff6464";
+        statusEl.innerText = "帳號僅能輸入英文字母與數字";
+        return;
+      }
+
+      // 3️⃣ 前端比對 accountData
+      const user = accountData.find(u =>
+        String(u["公務帳號"]).toLowerCase() === acc.toLowerCase() &&
+        String(u["姓名"]).trim() === name
+      );
+
+      if (!user) {
+        statusEl.style.color = "#ff6464";
+        statusEl.innerText = "查無此帳號或姓名不符";
+        return;
+      }
+
+      // 4️⃣ ✅ 先顯示成功訊息（你指定的 UX）
+      alert("您的登入密碼已寄至公務信箱，請至信箱查看")
+
+      // 5️⃣ 🔁 背後呼叫 GAS（不等回應）
+      google.script.run.sendPasswordEmail(acc, name);
     }
   </script>
 </body>
