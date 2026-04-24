@@ -11,10 +11,10 @@
   <div class="modal-dialog modal-xxl" style="max-width:95vw;">
     <div class="modal-content p-4">
       <!-- 上方標題 + 叉叉 -->
-      <div class="modal-header border-0">
+      <div class="modal-header border-1">
         <div class="w-100 text-center">
           <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center"
-                style="font-size:1.6rem; color:#ffa07a; letter-spacing:2px;">
+                style="font-size:1.6rem; color:#2f6b87; letter-spacing:2px;">
             <i class="bi bi-bar-chart-line-fill" style="font-size:2.2rem; vertical-align:middle;"></i>
             統計圖表
           </span>
@@ -23,7 +23,7 @@
       </div>
       <div class="modal-body">
         <!-- 資料來源切換 -->
-        <div class="mb-3">
+        <div class="mt-2 mb-3">
           <label for="dataSourceSelect" class="fw-bold me-2">資料來源：</label>
           <select id="dataSourceSelect" class="form-select form-select-sm d-inline-block" style="width:180px;" onchange="switchDataSource()">
             <option value="disposal" selected>銷案清單</option>
@@ -53,7 +53,7 @@
 
       <!-- 下方關閉按鈕 -->
       <div class="modal-footer justify-content-center border-0">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">關閉</button>
       </div>
     </div>
   </div>
