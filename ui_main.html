@@ -1,0 +1,2849 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.2/dist/dotlottie-wc.js" type="module"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="main-body min-h-screen flex flex-col">
+
+    <!-- 頂部導覽列：注意這裡的 bg-tw-primary -->
+    <header class="header-bar">
+        <div class="header-inner">
+            
+            <!-- 左側：系統名稱 -->
+            <div class="header-brand">
+                <i data-lucide="shield-check" class="header-icon"></i>
+                <h1 class="header-title">銷案審核助手</h1>
+                <!-- 用戶資訊 -->
+                <div class="user-info">
+                  <div>用戶名稱：<span id="name">施冠毅</span></div>
+                  <div>管理單位：<span id="userUnit">衛生局</span></div>
+                </div>
+            </div>
+
+            <!-- 右側：按鈕群 -->
+            <div class="header-actions">
+                
+                <!-- 靜音處理的功能：改用 bg-tw-primary-light -->
+                <div class="header-btn-group">
+
+                <button id="questionBankBtn"
+                onclick="bootstrap.Modal.getOrCreateInstance(document.getElementById('questionBankModal')).show()"
+                class="btn-header btn-soft">
+                <i data-lucide="book-open" class="icon-sm"></i>
+                題庫瀏覽
+                </button>
+
+                <button id="chartBtn"
+                onclick="bootstrap.Modal.getOrCreateInstance(document.getElementById('chartModal')).show()"
+                class="btn-header btn-soft">
+                <i data-lucide="bar-chart-2" class="icon-sm"></i>
+                統計圖表
+                </button>
+
+                <button id="manualBtn"
+                onclick="window.open('https://www.canva.com/design/DAGsSkNJlD0/O7K0K1ye8TtuAq1eSFntiQ/view', '_blank')"
+                class="btn-header btn-soft">
+                <i data-lucide="help-circle" class="icon-sm"></i>
+                操作說明
+                </button>
+
+                <button id="reloadBtn"
+                onclick="reloadDisposalList()"
+                class="btn-header btn-soft">
+                <i data-lucide="refresh-ccw" class="icon-sm"></i>
+                重整資料
+                </button>
+
+                </div>
+
+                <!-- 次要高頻操作 -->
+                <button id="exportExcelBtn"
+                onclick="exportDisposalExcel()"
+                class="btn-header btn-excel">
+                <i data-lucide="download" class="icon-sm"></i>
+                匯出Excel
+
+                </button>
+
+                <!-- 最主要操作：申請銷案 -->
+                <button id="applyBtn"
+                onclick="openApplyModal()"
+                class="btn-header btn-main">
+                <i data-lucide="file-plus-2" class="icon-sm"></i>
+                申請銷案
+                </button>
+
+                <!-- 訊息通知 -->
+                <button onclick="showUserMsg()" class="btn-icon" title="訊息通知">
+                <i data-lucide="bell" class="icon-md"></i>
+                <span class="notify-dot"></span>
+                </button>
+
+                <!-- 登出 -->
+                <button onclick="logout()" class="btn-header btn-outline">
+                <i data-lucide="log-out" class="icon-sm"></i>
+                登出
+                </button>
+
+            </div>
+        </div>
+    </header>
+
+<!-- 申請銷案 Modal -->
+<div class="modal fade" id="disposalModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="disposalModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="w-100 text-center">
+          <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center"
+                style="font-size:1.6rem; color:#2f6b87; letter-spacing:2px;">
+            <i class="bi bi-journal-plus" style="font-size:2.2rem; vertical-align:middle;"></i>
+            申請銷案
+          </span>
+        </div>
+      </div>
+      <div class="modal-body p-5 pt-5 pb-5" >
+        <form>
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <label for="inputUnit" class="form-label">管理單位</label>
+              <input type="text" class="form-control" id="inputUnit" disabled>
+            </div>
+            <div class="col-md-6">
+              <label for="inputUser" class="form-label">申請人</label>
+              <input type="text" class="form-control" id="inputUser" disabled>
+            </div>
+          </div>
+          <div class="row mb-4 align-items-end">
+            <!-- 總編號 -->
+            <div class="col-md-4">
+              <label for="inputTB" class="form-label">總編號</label>
+              <input type="text" class="form-control" id="inputTB" oninput="checkDuplicate()">
+            </div>
+
+            <!-- 個案姓名 -->
+            <div class="col-md-4">
+              <label for="inputName" class="form-label">個案姓名</label>
+              <input type="text" class="form-control" id="inputName">
+            </div>
+            <!-- 個案類型 -->
+            <div class="col-md-4">
+              <label class="form-label d-block">個案類型</label>
+              <div class="d-flex align-items-center gap-3 mt-1">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="caseType"
+                        id="caseType_TB" value="TB" checked
+                        onclick="updateReasonOptions()">
+                  <label class="form-check-label" for="caseType_TB">TB</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="caseType"
+                        id="caseType_LTBI" value="LTBI"
+                        onclick="updateReasonOptions()">
+                  <label class="form-check-label" for="caseType_LTBI">LTBI</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label for="inputEndDate" class="form-label">結束治療日</label>
+            <input type="date" class="form-control" id="inputEndDate"  oninput="checkDuplicate()">
+          </div>          
+          <div class="mb-4">
+            <label for="inputReason" class="form-label">銷案原因</label>
+            <select id="inputReason" class="form-select"></select>
+          </div>
+          <div class="mb-3">
+            <span id="duplicateMsg" class="form-text text-danger" style="min-height:24px;"></span>
+          </div>
+        </form>
+      </div>
+        <div class="modal-footer justify-content-center" style="gap: 0.5rem" id="disposalModalFooter">
+          <button type="button" class="btn-cancel" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn-approve" onclick="submitDisposal()" id="submitBtn">
+            <i data-lucide="send" width="18" height="18"></i>
+            提交
+          </button>
+        </div>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ 審核表單模塊 -->
+<div class="modal fade" id="reviewModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="reviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title-bar">
+  
+          <!-- 左 -->
+          <div class="modal-title-group">
+            <i class="material-symbols-outlined custom-icon modal-title-icon">edit_document</i>
+            <span class="modal-title-text">銷案審核表</span>
+          </div>
+
+          <!-- 右 -->
+          <div class="modal-status"></div>
+
+        </div>
+      </div>
+      <div class="modal-body">
+        <form>
+          <div class="row mb-3">
+            <div class="col-md-4 mb-2">
+              <label for="review_管理單位" class="form-label">管理單位</label>
+              <input type="text" class="form-control" id="review_管理單位" disabled>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label for="review_申請人" class="form-label">申請人</label>
+              <input type="text" class="form-control" id="review_申請人" disabled>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label for="review_申請時間" class="form-label">申請時間</label>
+              <input type="text" class="form-control" id="review_申請時間" disabled>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6 mb-2">
+              <label for="review_總編號" class="form-label">總編號</label>
+              <input type="text" class="form-control" id="review_總編號" disabled>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label for="review_個案姓名" class="form-label">個案姓名</label>
+              <input type="text" class="form-control" id="review_個案姓名" disabled>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 mb-2">
+              <label for="review_前次退件時間" class="form-label">前次退件時間</label>
+              <input type="text" class="form-control" id="review_前次退件時間" disabled>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label for="review_前次補件時間" class="form-label">前次補件時間</label>
+              <input type="text" class="form-control" id="review_前次補件時間" disabled>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label for="review_局前次抽回時間" class="form-label">前次抽回時間</label>
+              <input type="text" class="form-control" id="review_局前次抽回時間" disabled>
+            </div>
+          </div>
+          <div class="row mb-3" id="caseMetaSection">
+            <div class="col-md-4 mb-2">
+              <label class="form-label">個案類型</label>
+              <div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="review_caseType" id="review_caseType_TB" value="TB" onclick="updateReviewReasonOptions()">
+                  <label class="form-check-label" for="review_caseType_TB">TB</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="review_caseType" id="review_caseType_LTBI" value="LTBI" onclick="updateReviewReasonOptions()">
+                  <label class="form-check-label" for="review_caseType_LTBI">LTBI</label>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label for="review_結束治療日" class="form-label">結束治療日</label>
+              <input type="date" class="form-control" id="review_結束治療日">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label for="review_銷案原因" class="form-label">銷案原因</label>
+              <select id="review_銷案原因" class="form-select"></select>
+            </div>
+          </div>
+          <hr style="margin: 28px 0;">
+          <!--
+          <div class="alert-note">
+            <b>提醒：</b>
+            請留意維護的內容不含個資或已去敏化。
+          </div>  
+          -->       
+            <div class="mb-3">
+              <h5 class="section-title">
+                不可逆缺失項
+                <button type="button" class="add-btn" onclick="addReviewItem('unreversible')">＋</button>
+              </h5>
+              <div class="review-items-group" id="unreversible_items"></div>
+            </div>
+
+            <div class="mb-3">
+              <h5 class="section-title">
+                可逆缺失項
+                <button type="button" class="add-btn" onclick="addReviewItem('reversible')">＋</button>
+              </h5>
+              <div class="review-items-group" id="reversible_items"></div>
+            </div>
+
+            <div class="mb-3">
+              <h5 class="section-title">
+                建議事項
+                <button type="button" class="add-btn" onclick="addReviewItem('suggestion')">＋</button>
+              </h5>
+              <div class="review-items-group" id="suggestion_items"></div>
+            </div>
+            <div class="mb-3">
+              <h5 style="font-weight:bolder; color:#374151;">備註</h5>
+
+              <textarea id="review_備註"
+                        rows="4"
+                        class="form-control  mb-5"
+                        style="font-size:16px;resize:vertical;"></textarea>
+
+              <!-- 🔽 審核資訊（右對齊） -->
+              <div class="review-meta-text">
+                審核者：<span id="review_最近審核者"></span>，
+                <span id="review_最近審核時間"></span>
+              </div>
+          <div class="accordion" id="historyAccordion">
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingHistory">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseHistory" aria-expanded="false" aria-controls="collapseHistory">
+                  <strong><i class="material-symbols-outlined" style="vertical-align: middle; margin-right: 5px;">history</i>檢視簽辦歷程</strong>
+                </button>
+              </h2>
+              <div id="collapseHistory" class="accordion-collapse collapse" aria-labelledby="headingHistory" data-bs-parent="#historyAccordion">
+                <div class="accordion-body">
+                  <!-- 時間軸元件 -->
+                  <ul class="timeline m-0">
+                    <li class="timeline-item">
+                      <div class="timeline-date">2023-10-26 14:30</div>
+                      <div class="timeline-content">
+                        <span class="timeline-user">李管理員</span> <span class="timeline-action" style="color: #059669;">[審核通過]</span>
+                        <div class="mt-1 small text-muted">備註：資料無誤，同意銷案。</div>
+                      </div>
+                    </li>
+                    <li class="timeline-item">
+                      <div class="timeline-date">2023-10-25 15:20</div>
+                      <div class="timeline-content">
+                        <span class="timeline-user">王大明</span> <span class="timeline-action" style="color: #3b82f6;">[重新送件]</span>
+                        <div class="mt-1 small text-muted">備註：已補齊結束治療日證明。</div>
+                      </div>
+                    </li>
+                    <li class="timeline-item">
+                      <div class="timeline-date">2023-10-25 11:00</div>
+                      <div class="timeline-content">
+                        <span class="timeline-user">李管理員</span> <span class="timeline-action" style="color: #dc2626;">[退件]</span>
+                        <div class="mt-1 small text-muted">備註：缺少結束治療日相關證明，請補件。</div>
+                      </div>
+                    </li>
+                    <li class="timeline-item">
+                      <div class="timeline-date">2023-10-25 10:00</div>
+                      <div class="timeline-content">
+                        <span class="timeline-user">王大明</span> <span class="timeline-action" style="color: #3b82f6;">[初次送件]</span>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+              <!-- 隱藏欄位 -->
+              <input type="hidden" id="review_退件次數" value="0">
+              <input type="hidden" id="review_補件次數" value="0">
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer modal-action-group" id="formActions"></div>
+    </div>
+  </div>
+</div>
+<!-- ✅ 審核表單模塊 -->
+
+  <!-- 確定更新 -->
+  <div class="modal fade" id="confirmUpdateModal" tabindex="-1" aria-labelledby="confirmUpdateModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+      <div class="modal-content" style="min-height: 440px; display: flex; flex-direction: column; justify-content: center;">
+        <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+          <dotlottie-wc src="https://lottie.host/d016a098-1d3f-4830-afed-803d3155bbb9/FH0ctHzVih.lottie" autoplay loop style="width:100%;height:100%;"></dotlottie-wc>
+            <h2 style="margin: 32px 0 0 0; font-size: 2.5rem; font-weight: bold; text-align:center;">
+              確定執行？
+            </h2>
+        </div>
+        <div class="modal-footer justify-content-center border-0" style="padding-bottom: 40px;">
+          <button type="button" class="custom-btn custom-btn-secondary" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">關閉</button>
+          <button type="button" class="custom-btn" id="confirmUpdateBtn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 簽辦歷程表 -->
+
+
+<!-- 確定抽回 -->
+<div class="modal fade" id="confirmRecallModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+    <div class="modal-content" style="min-height: 440px; display: flex; flex-direction: column; justify-content: center;">
+      <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+        <dotlottie-wc src="https://lottie.host/d016a098-1d3f-4830-afed-803d3155bbb9/FH0ctHzVih.lottie" autoplay loop style="width:100%;height:100%;"></dotlottie-wc>
+        <h2 style="margin: 32px 0 0 0; font-size: 2.5rem; font-weight: bold; text-align:center;">
+          確定抽回？
+        </h2>
+      </div>
+      <div class="modal-footer justify-content-center border-0" style="padding-bottom: 40px;">
+        <button type="button" class="custom-btn custom-btn-secondary" data-bs-dismiss="modal">關閉</button>
+        <button type="button" class="custom-btn" id="confirmRecallBtn">確定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- 進度條動畫模態框 -->
+  <div class="modal fade" id="loadingModal" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="min-height: 220px;">
+        <div class="modal-body text-center" style="width:100%; padding-top: 48px; padding-bottom: 32px;">
+          <div class="spinner-border" style="margin-bottom: 18px; width: 3rem; height: 3rem;"></div>
+          <div style="font-size:1.5rem; letter-spacing:2px;">請稍候...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 上傳圖片模態框 -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="min-height: 320px;">
+      <div class="modal-body text-center" style="padding-top: 48px; padding-bottom: 32px;">
+        <div class="spinner-border mb-4" style="width: 3rem; height: 3rem;"></div>
+        <div style="font-size:1.5rem; letter-spacing:2px;" class="mb-3">請稍候，正在上傳圖片...</div>
+        <div class="progress" style="height: 25px; margin: 0 40px;">
+          <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuemin="0" aria-valuemax="100">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- 更新完成通知模態視窗 -->
+  <div class="modal fade" id="updateCompleteModal" tabindex="-1" aria-labelledby="updateCompleteModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+      <div class="modal-content" style="min-height: 410px; display: flex; flex-direction: column; justify-content: center;">
+        <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+          <div id="lottieContainer" style="width: 170px; height: 170px; display: flex; align-items: center; justify-content: center;">
+          </div>
+          <h2 style="margin: 32px 0 0 0; font-size: 2.3rem; font-weight: bold; text-align:center;">
+            <span id="updateCompleteMessage">執行完成</span>
+          </h2>
+        </div>
+        <div class="modal-footer justify-content-center border-0" style="padding-bottom: 40px;">
+          <button type="button" class="custom-btn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- alert 對話模塊-->
+  <div class="modal fade" id="customAlertModal" tabindex="-1" aria-labelledby="customAlertModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" style="margin-top: 7vh; max-width: 420px;">
+      <div class="modal-content" style="min-height: 340px; display: flex; flex-direction: column; justify-content: center; padding: 10px 28px 32px 28px;">
+        <div class="d-flex flex-column align-items-center justify-content-center py-4" style="border: none; flex:1;">
+            <dotlottie-wc src="https://lottie.host/516d63f8-8a38-43b8-9de5-f5131a2f767e/tGQ9PlBqt4.lottie" autoplay loop style="width:100%;height:100%;"></dotlottie-wc>
+          <h2 style="margin: 24px 0 0 0; font-size: 1.55rem; font-weight: bold; text-align:center;">
+            <span id="customAlertMessage"></span>
+          </h2>
+        </div>
+        <div class="modal-footer justify-content-center border-0" style="padding-bottom: 20px;">
+          <button type="button" class="custom-btn" data-bs-dismiss="modal" style="font-size:1.2rem; min-width: 90px;">確定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="case-container">
+    <div class="case-header">
+      <!-- 左側警告標語 -->
+      <!--
+      <span class="case-warning">
+        <img src="https://img.icons8.com/fluency/24/000000/error--v1.png" style="margin-right:8px; width:20px; height:20px;" alt="警告">
+        請使用編號維護，嚴禁使用個資
+      </span>
+      -->
+      <!-- 右側填充空span，避免flex收縮 -->
+      <span style="min-width:320px; visibility:hidden;">填充</span>
+      <!-- 標題用絕對定位，水平置中 -->
+      <h2 class="table-title case-title">
+        銷案清單
+      </h2>
+    </div>
+  <br>
+  <!-- 下拉式選單篩選 -->
+  <div class="filter-bar mb-4">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <label for="caseTypeFilter" class="filter-label">個案類型：</label>
+        <select id="caseTypeFilter" class="form-select form-select-sm d-inline-block" style="width: 150px;" onchange="onStatusOrUnitFilterChange()">
+          <option value="all" selected>🌐 全部</option>
+          <option value="TB">TB</option>
+          <option value="LTBI">LTBI</option>
+        </select>
+      </div>
+        <div class="col-auto">
+          <label for="statusFilter" class="filter-label" style="margin-left:16px;">審核狀態：</label>
+          <select id="statusFilter"
+                  class="form-select form-select-sm d-inline-block"
+                  style="width: 150px;"
+                  onchange="onStatusOrUnitFilterChange()">
+
+            <option value="notpass" selected>尚未通過</option>
+            <option value="approved">通過</option>
+            <option value="rejected">退件</option>
+            <option value="patch">補件</option>
+            <option value="pending">處理中</option>
+            <option value="not_processed">尚未處理</option>
+            <option value="cancelled">取消銷案</option>
+
+            <option value="all">🌐 全部</option>
+          </select>
+        </div>
+      <div class="col-auto">
+        <label for="unitFilter" class="filter-label" style="margin-left:16px;">管理單位：</label>
+        <select id="unitFilter" class="form-select form-select-sm d-inline-block" style="width: 150px;" onchange="onStatusOrUnitFilterChange()"></select>
+      </div>
+      <span id="tutorFilterWrapper" class="col-auto" style="display:none;">
+        <label for="tutorFilter" class="filter-label" style="margin-left:16px;">輔導員：</label>
+        <select id="tutorFilter" class="form-select form-select-sm d-inline-block" style="width: 150px;" onchange="onStatusOrUnitFilterChange()"></select>
+      </span>
+      <span id="applicantFilterWrapper" class="col-auto" style="display:none;">
+        <label for="applicantFilter" class="filter-label" style="margin-left:16px;">申請人：</label>
+        <select id="applicantFilter" class="form-select form-select-sm d-inline-block" style="width: 150px;" onchange="onStatusOrUnitFilterChange()"></select>
+      </span>
+      <div class="col-auto">
+        <label for="tbSearchInput" class="filter-label" style="margin-left:16px;">查詢：</label>
+        <input id="tbSearchInput" class="form-control form-control-sm d-inline-block" type="text"
+              style="width: 150px;" placeholder="輸入總編號" oninput="onStatusOrUnitFilterChange()">
+      </div>
+      <div class="col-auto ms-auto">
+        <button type="button" class="btn-clear-filter" id="clearFilterBtn"
+          title="清除篩選" onclick="clearFilterBar()">
+          <span class="material-icons">cleaning_services</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- 下拉式選單篩選 -->
+  <div id="caseCount" class="case-count">共 0 筆</div>
+  <div class="table-area">
+  </div>
+  <div id="tableArea">載入中...</div>
+  </div>
+  <div class="spacer"></div>
+
+<!-- 搜尋銷案檢核模塊 -->
+<div class="modal fade" id="reviewCategoryModal" tabindex="-1" aria-labelledby="reviewCategoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog" style="max-width:1050px;">
+    <div class="modal-content" style="border-radius:18px; border-width:2.5px; border-color:#ced4da;">
+      <div class="modal-header" style="padding:22px 36px 12px 36px;">
+        <h5 class="modal-title text-center" id="reviewCategoryModalLabel" style="font-size:1.45rem;letter-spacing:1px;width:100%;">選擇缺失大類</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:32px 38px 24px 38px;">
+        <input type="text" class="form-control mb-4" id="categorySearchInput" style="font-size:1.08rem; padding:10px 16px; border-radius:8px; border:1.5px solid #ced4da;" placeholder="輸入關鍵字搜尋...">
+        <div style="max-height:560px;overflow:auto;">
+          <table class="table table-hover table-bordered mb-0" id="categoryTable" style="background:#fff;">
+            <thead>
+              <tr>
+                <th style="width:250px; font-size:1.11rem; background:#ffe082; color:#4d3200; text-align:center; border-bottom:2.5px solid #ffe0b2;">大類</th>
+                <th style="width:750px; font-size:1.11rem; background:#ffe082; color:#4d3200; text-align:left; border-bottom:2.5px solid #ffe0b2;">判定原則</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- js 動態加入 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+        <div class="modal-footer justify-content-center" style="padding:16px 38px 18px 38px;">
+          <button type="button" class="btn-cancel" data-bs-dismiss="modal" style="font-size:1.09rem; min-width: 98px;">取消</button>
+        </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- 訊息通知模塊（一般單位） -->
+<div class="modal fade" id="msgModal_general" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false"
+     aria-labelledby="msgModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="w-100 text-center">
+          <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center"
+                style="font-size:1.8rem; color:#2f6b87; letter-spacing:2px;">
+            <i class="bi bi-bell-fill" style="font-size:1.5rem; vertical-align:middle;"></i>
+            訊息通知
+          </span>
+        </div>
+      </div>
+      <div class="modal-body pt-4 pb-4">
+        <pre id="msgContent_general" style="max-height:300px; overflow:auto; background:#f7f7f7; padding:8px; border-radius:8px;"></pre>
+      </div>
+      <div class="modal-footer modal-action-group">
+        <button type="button" class="btn-clear" onclick="clearMsgContent()">全部清除</button>
+        <button type="button" class="btn-cancel" onclick="closeMsgModal()">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 🏛️ 衛生局專用通知模塊 -->
+<div class="modal fade" id="msgModal_bureau" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false"
+     aria-labelledby="msgModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:1250px;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="w-100 text-center">
+          <span class="d-inline-flex align-items-center justify-content-center gap-2 fw-bold text-center"
+                style="font-size:1.8rem; color:#2f6b87; letter-spacing:2px;">
+            <i class="bi bi-bell-fill" style="font-size:1.5rem; vertical-align:middle;"></i>
+            訊息中心
+          </span>
+        </div>
+      </div>
+
+      <!-- 主內容 -->
+      <div class="modal-body" style="background:#fffefc; max-height:75vh; overflow:auto; padding:1.5rem 2rem;">
+        
+        <!-- 🔸 區塊一：銷案訊息 -->
+        <section id="bureauSection_disposal" class="mb-4">
+          <h5 class="fw-bold text-danger mb-3">
+            <i class="material-icons align-middle me-1" style="color:#e53935;">assignment</i>
+            銷案訊息
+          </h5>
+          <div style="
+            background:#fff6f2;
+            border:1.5px solid #ffcdd2;
+            border-radius:8px;
+            padding:10px 12px;
+            max-height:280px;
+            overflow-y:auto;
+          ">
+            <pre id="msgContent_bureau" style="
+              white-space:pre-wrap;
+              font-size:1rem;
+              margin:0;
+            ">(無訊息)</pre>
+          </div>
+        </section>
+
+        <hr class="my-4">
+
+        <!-- 🔸 區塊二：我尚未審核的題目 -->
+        <section id="bureauSection_unreviewed" class="mb-2">
+          <h5 class="fw-bold text-success mb-3">
+            <i class="material-icons align-middle me-1" style="color:#2e7d32;">rule_folder</i>
+            我尚未審核的題目
+          </h5>
+          <div id="bureauUnreviewedArea"
+               class="p-3 border rounded"
+               style="
+                 background:#edf3e6;             /* ✅ 淺綠灰背景（對比藍色區塊） */
+                 min-height:100px;
+                 max-height:280px;
+                 overflow-y:auto;
+                 border-radius:10px;
+                 box-shadow:inset 0 1px 3px rgba(0,0,0,0.08);
+               ">
+            <div class="text-muted text-center">（無資料）</div>
+          </div>
+        </section>
+
+        <hr class="my-4">
+
+
+        <!-- 🔸 區塊三：我尚未啟用的題目 -->
+        <section id="bureauSection_unactivated" class="mb-4">
+          <h5 class="fw-bold text-primary mb-3">
+            <i class="material-icons align-middle me-1" style="color:#1976d2;">pending_actions</i>
+            我尚未啟用的題目
+          </h5>
+          <div id="bureauUnactivatedArea"
+               class="p-3 border rounded"
+               style="
+                 background:#e9f0fb;             /* ✅ 淺藍灰背景（比表格更深一點） */
+                 min-height:100px;
+                 max-height:280px;
+                 overflow-y:auto;
+                 border-radius:10px;
+                 box-shadow:inset 0 1px 3px rgba(0,0,0,0.08);
+               ">
+            <div class="text-muted text-center">（無資料）</div>
+          </div>
+        </section>
+
+
+      </div>
+
+      <!-- 按鈕區 -->
+      <div class="modal-footer modal-action-group">
+        <button type="button" class="btn-clear" onclick="clearMsgContent()">清除銷案訊息</button>
+        <button type="button" class="btn-cancel" onclick="closeMsgModal()">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 預覽圖模塊 -->
+<div class="modal fade" id="imageModal" tabindex="-1" style="transform: translateX(-5.6px);">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 90vw;">
+    <div class="modal-content" style="border:3px solid #aaa; border-radius:0.5rem; box-shadow:0 0.5rem 1rem rgba(0,0,0,0.15);">
+      <div class="modal-body text-center p-3">
+        <img id="modalImage" class="img-fluid rounded" style="max-height:80vh; object-fit:contain;" />
+        <hr class="my-3" />
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- 圖片放大 Modal -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-labelledby="imagePreviewLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-body p-0">
+        <img id="imagePreviewModalImg" src="" class="w-100" style="object-fit: contain; max-height: 80vh;" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 貼上圖片畫布 -->
+<div class="modal fade" id="pasteImageModal" tabindex="-1" aria-labelledby="pasteImageModalLabel" aria-hidden="true" data-bs-keyboard="false" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-lg" style="margin:1.8rem auto;">
+    <div class="modal-content" style="padding:1rem; border:3px solid #aaa; background-color:#fff;">
+      <div class="modal-header" style="padding:1rem 2rem;">
+        <h5 class="modal-title">加入圖片</h5>
+      </div>
+      <div class="modal-body" style="padding:1rem 2rem 2rem 2rem;">
+        <div class="alert-note">
+          <b>提醒：</b>
+          貼上圖片前，請確保已遮蓋或清除圖片中的個資。
+        </div> 
+        <div id="pasteImageArea"
+            contenteditable="true"
+            style="border:1px dashed #ccc;
+                   height:50px;
+                   padding:8px 12px;
+                   font-size:14px;
+                   line-height:20px;
+                   overflow:auto;">
+          請在此處按 Ctrl+V 貼上圖片
+        </div>
+        <br>
+        你加入的圖片會呈現在下方👇
+        <img id="pasteImagePreview" style="display:none; margin-top:10px; max-width:100%;">
+      </div>
+      <div class="modal-footer" style="padding:1.5rem 2rem;">
+        <button type="button" class="btn-clear me-auto" id="removePastedImage">
+          <i data-lucide="image-off"></i>
+          移除預覽圖
+        </button>
+        <button type="button" class="btn-cancel" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn-approve" id="confirmPasteImage">
+          <i data-lucide="image"></i>
+          套用
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.10.2/lottie.min.js"></script>
+<script>
+lucide.createIcons();
+//產生缺失下拉選單內容
+function getReviewOptions(reason, type) {
+  // type = 'unreversible' or 'reversible'
+  if (REVIEW_OPTIONS.hasOwnProperty(reason)) {
+    return REVIEW_OPTIONS[reason][type] || [];
+  }
+  return [];
+}
+
+// 取得目前勾選的個案類型
+function getSelectedCaseType() {
+  return document.querySelector('input[name="caseType"]:checked').value;
+}
+
+
+function autoGrow(element) {
+  element.style.height = "auto";
+  element.style.height = (element.scrollHeight) + "px";
+}
+
+// 申請表單
+function updateReasonOptions() {
+  const type = getSelectedCaseType();
+  const reasonSelect = document.getElementById("inputReason");
+  reasonSelect.innerHTML = "";
+  reasonOptions[type].forEach(option => {
+    const opt = document.createElement("option");
+    opt.value = option;
+    opt.text = option;
+    reasonSelect.appendChild(opt);
+  });
+}
+
+// 審核表單
+function getSelectedReviewCaseType() {
+  return document.querySelector('input[name="review_caseType"]:checked').value;
+}
+function updateReviewReasonOptions() {
+  const type = getSelectedReviewCaseType();
+  const reasonSelect = document.getElementById("review_銷案原因");
+  reasonSelect.innerHTML = "";
+  reasonOptions[type].forEach(option => {
+    const opt = document.createElement("option");
+    opt.value = option;
+    opt.text = option;
+    reasonSelect.appendChild(opt);
+  });
+}
+
+// 補件表單
+function getSelectedEditorCaseType() {
+  return document.querySelector('input[name="review_caseType"]:checked')?.value || "";
+}
+function updateEditorReasonOptions() {
+  const type = getSelectedEditorCaseType();
+  const reasonSelect = document.getElementById("editor_銷案原因");
+  reasonSelect.innerHTML = "";
+  reasonOptions[type].forEach(option => {
+    const opt = document.createElement("option");
+    opt.value = option;
+    opt.text = option;
+    reasonSelect.appendChild(opt);
+  });
+}
+//============↑↑↑↑↑↑↑定義個案類型與銷案原因選項與切換↑↑↑↑↑↑↑============
+
+
+//============↓↓↓↓↓↓↓申請銷案功能↓↓↓↓↓↓↓============
+  //開啟申請銷案模塊
+  function openApplyModal() {
+    var unit = document.getElementById("userUnit").innerText.trim();
+    if (unit === "衛生局") {
+      alert("衛生局無法申請銷案！");
+      return;
+    }
+    // 自動帶入管理單位與申請人
+    document.getElementById("inputUnit").value = document.getElementById("userUnit").innerText.trim();
+    document.getElementById("inputUser").value = document.getElementById("name").innerText.trim();
+    document.getElementById("duplicateMsg").innerText = "";
+    document.getElementById("submitBtn").disabled = false;
+    updateReasonOptions();
+
+    const endDateInput = document.getElementById("inputEndDate");
+    if (endDateInput) {
+      const today = new Date();
+      today.setDate(today.getDate() - 1);
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      endDateInput.max = `${yyyy}-${mm}-${dd}`;
+    }
+
+
+    // Bootstrap 5 Modal 開啟
+    const myModal = new bootstrap.Modal(document.getElementById('disposalModal'));
+    myModal.show();
+
+  }
+
+  //關閉申請銷案模塊
+  function closeApplyModal() {
+    const modalEl = document.getElementById('disposalModal');
+    const modalObj = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modalObj.hide();
+  }
+
+
+
+  function checkDuplicate() {
+    const tb = document.getElementById("inputTB").value.trim();
+    const endDate = document.getElementById("inputEndDate").value.trim();
+    const msg = document.getElementById("duplicateMsg");
+    const submit = document.getElementById("submitBtn");
+
+    /* ===============================
+      🔹 防呆：依總編號自動切換個案類型（不鎖）
+      規則：長度=6 且開頭為 2 → 預設 LTBI，其餘 → TB
+    =============================== */
+    const tbRadio   = document.getElementById("caseType_TB");
+    const ltbiRadio = document.getElementById("caseType_LTBI");
+
+    if (tb.length === 6 && tb.startsWith("2")) {
+      if (ltbiRadio && !ltbiRadio.checked) {
+        ltbiRadio.checked = true;
+        updateReasonOptions();
+      }
+    } else {
+      if (tbRadio && !tbRadio.checked) {
+        tbRadio.checked = true;
+        updateReasonOptions();
+      }
+    }
+
+    /* ===============================
+      🚫 禁止使用身分證字號
+    =============================== */
+    const idPattern = /^[A-Za-z][0-9]{9}$/;
+    if (tb && idPattern.test(tb)) {
+      msg.innerText = "🚫 禁止使用身分證字號申請";
+      submit.disabled = true;
+      return;
+    }
+
+    /* ===============================
+      ⛔ 未填完整不做重複比對
+    =============================== */
+    if (!tb || !endDate) {
+      msg.innerText = "";
+      submit.disabled = false;
+      return;
+    }
+
+    /* ===============================
+      🔍 重複比對邏輯（原樣保留）
+    =============================== */
+    let hasSameTB = false;
+    let hasSameTBAndEndDate = false;
+    const inputDate = simpleDateStr(endDate);
+
+    allTBs.forEach(item => {
+      let tbVal = String(item.tb).replace(/^'/, '');
+      let itemDate = simpleDateStr(item.endDate);
+
+      if (tbVal === tb) {
+        hasSameTB = true;
+        if (itemDate === inputDate && inputDate) {
+          hasSameTBAndEndDate = true;
+        }
+      }
+    });
+
+    if (hasSameTBAndEndDate) {
+      msg.innerText = "🚫 已有相同總編號且結束治療日完全一致之個案，不可重複申請！";
+      submit.disabled = true;
+    } else if (hasSameTB) {
+      msg.innerText = "⚠️ 此總編號已存在（結束治療日不同），請確認是否為重開個案。";
+      submit.disabled = false;
+    } else {
+      msg.innerText = "";
+      submit.disabled = false;
+    }
+  }
+
+  //送出申請銷案
+  function submitDisposal() {
+    // ✅ 先做欄位檢查
+    const tb = document.getElementById("inputTB").value.trim();
+    const rawName = document.getElementById("inputName").value.trim();
+    const endDate = document.getElementById("inputEndDate").value;
+    const reason = document.getElementById("inputReason").value.trim();
+
+    if (!tb || !rawName || !endDate || !reason) {
+      alert("⚠️ 請完整填寫所有欄位");
+      return;
+    }
+
+    // 🟢 欄位皆有填，再叫出確認視窗
+    confirmAndSubmitNoLoading(function(onComplete) {
+      doSubmitDisposal(onComplete);
+    });
+  }
+
+
+  function doSubmitDisposal(onComplete) {
+    let rawName = document.getElementById("inputName").value.trim();
+    let caseNameWithCircle = rawName;
+
+    if (rawName.length >= 5) {
+      // 長度 >= 5 → 固定兩個 ◯
+      caseNameWithCircle = rawName[0] + "◯◯";
+    } else if (rawName.length >= 2) {
+      // 長度 2~4 → 維持原本邏輯
+      caseNameWithCircle = rawName[0] + "◯".repeat(rawName.length - 1);
+    }
+
+    const data = {
+      tb: document.getElementById("inputTB").value.trim(),
+      caseName: caseNameWithCircle,
+      endDate: document.getElementById("inputEndDate").value,
+      reason: document.getElementById("inputReason").value.trim(),
+      userName: document.getElementById("name").innerText.trim(),
+      unit: document.getElementById("userUnit").innerText.trim(),
+      caseType: getSelectedCaseType()
+    };
+
+    if (!data.tb || !rawName || !data.endDate || !data.reason) {
+      alert("請完整填寫所有欄位");
+      return;
+    }
+
+    // 本地快取與畫面
+    const headers = fullDisposalData[0];
+    const now = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    const formattedNow = now.getFullYear() + "/" + pad(now.getMonth() + 1) + "/" + pad(now.getDate()) +
+      " " + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+
+    const deadline = calcDisposalDeadline(data.caseType, data.endDate, data.reason);
+    const newRow = headers.map(header => {
+      switch (header) {
+        case "個案類型": return data.caseType;
+        case "總編號": return data.tb;
+        case "個案姓名": return data.caseName;
+        case "結束治療日": return data.endDate.replace(/-/g, "/");
+        case "銷案原因": return data.reason;
+        case "銷案期限": return deadline;
+        case "管理單位": return data.unit;
+        case "申請人": return data.userName;
+        case "申請時間": return formattedNow;
+        case "審核狀態": return "not_processed";
+        default: return "";
+      }
+    });
+
+    fullDisposalData.push(newRow);
+    renderTableWithFilter();
+
+    // 立刻呼叫 onComplete（前端UX立即完成）
+    if (typeof onComplete === "function") onComplete("申請成功！");
+    closeApplyModal();
+    clearDisposalForm();
+
+    // 後台同步
+    google.script.run.submitDisposalRequest(data);
+
+    // 非同步再更新 allTBs
+    google.script.run.withSuccessHandler(function(freshData) {
+      allTBs = fullDisposalData.slice(1).map(row => ({
+        tb: row[fullDisposalData[0].indexOf("總編號")],
+        endDate: row[fullDisposalData[0].indexOf("結束治療日")]
+      }));
+    }).getDisposalListData();
+  }
+
+
+
+  //清空申請表單內容
+  function clearDisposalForm() {
+    document.getElementById("inputTB").value = "";
+    document.getElementById("inputName").value = "";
+    document.getElementById("inputEndDate").value = "";
+    document.getElementById("inputReason").value = "";
+    document.getElementById("duplicateMsg").innerText = "";
+    document.getElementById("submitBtn").disabled = false;
+  }
+
+
+//============↑↑↑↑↑↑↑申請表單功能↑↑↑↑↑↑↑============
+
+
+//============↓↓↓↓↓↓↓建立審核者/修正者表單功能↓↓↓↓↓↓↓============
+  //依據使用者開立表單
+  function openReviewForm(caseKey) {
+
+    // =========================
+    // 1️⃣ 拆 key
+    // =========================
+    const [tbNumber, applyTimeFromKey] = caseKey.split("__");
+
+    if (!tbNumber || !applyTimeFromKey) {
+      alert("案件識別資訊不足，請重新整理清單");
+      return;
+    }
+
+    const unit = document.getElementById("userUnit").innerText.trim();
+    const headers = fullDisposalData[0];
+    const rows = fullDisposalData.slice(1);
+
+    const tbIdx        = headers.indexOf("總編號");
+    const applyTimeIdx = headers.indexOf("申請時間");
+    const statusIdx    = headers.indexOf("審核狀態");
+
+    if (tbIdx === -1 || applyTimeIdx === -1) {
+      alert("資料欄位錯誤（缺少總編號或申請時間）");
+      return;
+    }
+
+    function normalizeDateTime(val) {
+      if (val instanceof Date) {
+        return Utilities.formatDate(
+          val,
+          Session.getScriptTimeZone(),
+          "yyyy/MM/dd HH:mm:ss"
+        );
+      }
+      return String(val).replace(/-/g, "/").trim();
+    }
+
+    const targetApplyTime = normalizeDateTime(applyTimeFromKey);
+
+    // =========================
+    // 2️⃣ 找資料
+    // =========================
+    const rowData = rows.find(row =>
+      String(row[tbIdx]).trim() === tbNumber &&
+      normalizeDateTime(row[applyTimeIdx]) === targetApplyTime
+    );
+
+    if (!rowData) {
+      alert("找不到對應的申請資料（總編號＋申請時間）");
+      return;
+    }
+
+    document.body.dataset.applyTime = targetApplyTime;
+
+    // =========================
+    // 3️⃣ 狀態判斷
+    // =========================
+    const statusVal = rowData[statusIdx];
+    const status = normalizeStatus(statusVal);
+
+    // =========================
+    // 4️⃣ 🔥 衛生局 → 全部走 reviewer modal
+    // =========================
+    if (unit === "衛生局") {
+
+      // ✅ 永遠用 reviewer form
+      buildFormForReviewer(headers, rowData);
+
+      // ✅ editable 控制（核心）
+      const isEditable = ["not_processed", "pending", "patch"].includes(status);
+
+      setEditable(isEditable, "reviewModal");
+
+      return; // 👈 很重要，避免掉進其他分支
+    }
+    // =========================
+    // 5️⃣ 衛生所（先不動）
+    // =========================
+    else {
+      // ✅ 統一用 reviewer form
+      buildFormForReviewer(headers, rowData);
+
+      // ✅ 編輯權限控制（衛生所）
+      const isEditable = ["rejected", "cancelled"].includes(status);
+
+      setEditable(isEditable, "reviewModal");
+    }
+  }
+
+//============↑↑↑↑↑↑↑建立審核者/修正者表單功能↑↑↑↑↑↑↑============
+
+
+//============↓↓↓↓↓↓↓審核表單功能↓↓↓↓↓↓↓============
+  //建立審核表單
+  function buildFormForReviewer(headers, rowData) {
+    // 1. 預先取得索引
+    const statusIdx = headers.indexOf("審核狀態");
+    const caseTypeIdx = headers.indexOf("個案類型");
+    const reasonIdx = headers.indexOf("銷案原因");
+    const irrIdx = headers.indexOf("不可逆缺失項");
+    const revIdx = headers.indexOf("可逆缺失項");
+    const sugIdx = headers.indexOf("建議事項");
+
+    // 🔥 統一轉換
+    const rawStatus = statusIdx !== -1 ? rowData[statusIdx] : "";
+    const status = normalizeStatus(rawStatus);
+
+    const caseType = rowData[caseTypeIdx] || "TB";
+    const reasonVal = rowData[reasonIdx] || "";
+
+
+    // 2. 基本欄位設定（👉 改這裡）
+    getField("caseType_TB").checked = (caseType === "TB");
+    getField("caseType_LTBI").checked = (caseType === "LTBI");
+
+    if (typeof updateReviewReasonOptions === "function") updateReviewReasonOptions();
+
+    const reasonEl = getField("銷案原因");
+    if (reasonEl) reasonEl.value = reasonVal;
+
+    // 日期限制（👉 改這裡）
+    const endDateInput = getField("結束治療日");
+    if (endDateInput) {
+      const today = new Date();
+      today.setDate(today.getDate() - 1);
+      endDateInput.max = today.toISOString().split('T')[0];
+    }
+
+    // 3. 缺失項目（不動）
+    initReviewItems("unreversible", rowData[irrIdx]);
+    initReviewItems("reversible", rowData[revIdx]);
+    initReviewItems("suggestion", rowData[sugIdx]);
+
+    // 4. 填欄位
+    headers.forEach(function(header, idx) {
+      if (["不可逆缺失項", "可逆缺失項", "建議事項"].includes(header)) return;
+
+      const el = getField(header);   // 🔥 核心替換
+      if (!el) return;
+
+      let val = rowData[idx] || "";
+
+      // 狀態顯示 label
+      if (header === "審核狀態") {
+        const s = STATUS_MAP[status];
+        val = s ? s.label : val;
+      }
+
+      if (el.tagName === "SELECT") {
+        el.value = val;
+      } else if (["SPAN", "DIV", "LABEL"].includes(el.tagName)) {
+        el.innerText = val;
+      } else {
+        el.value = val;
+
+        if (el.type === "date") {
+          el.value = val.replace(/\//g, '-');
+        } else if (el.type === "datetime-local") {
+          el.value = val.replace(/\//g, '-').replace(' ', 'T');
+        } else if (el.type === "checkbox") {
+          el.checked = !!val;
+        }
+      }
+    });
+    // 顯示審核者資訊
+    toggleReviewMeta();
+    // 5. 拖曳（不動）
+    ['unreversible_items', 'reversible_items', 'suggestion_items'].forEach(id => {
+      const container = document.getElementById(id);
+
+      if (container && !container.hasAttribute('data-sortable-initialized')) {
+        const instance = Sortable.create(container, {
+          animation: 200,
+          ghostClass: 'sortable-ghost',
+          draggable: '.review-item-row'
+        });
+
+        sortableMap[id] = instance; // ← 存起來
+        container.setAttribute('data-sortable-initialized', 'true');
+      }
+    });
+
+    // 6.顯示底部按鈕
+    const role = document.getElementById("userUnit").innerText.trim();
+    const actions = resolveActions(role, status);
+
+    renderButtons(actions);
+    applyAllPermissions(role, status);   // 👈 主控制
+    // 7. 顯示 modal（不動）
+    const reviewModalEl = document.getElementById('reviewModal');
+    const reviewModal = bootstrap.Modal.getOrCreateInstance(reviewModalEl);
+    renderModalStatus(status, "reviewModal");
+    reviewModal.show();
+  }
+
+  // 解析內容字串，依照缺失項目分類，並自動判斷核取勾選
+  function initReviewItems(type, jsonStr) {
+    const container = document.getElementById(type + '_items');
+    container.innerHTML = '';
+    if (!jsonStr) return;
+    let data;
+    try {
+      data = JSON.parse(jsonStr);
+    } catch(e) {
+      alert("資料格式錯誤"); return;
+    }
+    data.forEach(item => {
+      addReviewItem(type, item.remark, item.checked, item.select, "", item.imageUrl);
+      const rows = container.querySelectorAll('.review-item-row');
+      const lastRow = rows[rows.length - 1];
+      const ta = lastRow.querySelector('textarea');
+      if (ta) autoGrow(ta);
+    });
+  }
+
+  // ✅ 修改版 addReviewItem：加入 imageRemoved 標記
+  function addReviewItem(type, content = "", checked = false, selectVal = "", imageBase64 = "", imageUrl) {
+    const containerId = type + '_items';
+    const container = document.getElementById(containerId);
+    const uuid = Math.random().toString(36).substring(2, 10);
+
+    const caseType = getSelectedReviewCaseType && getSelectedReviewCaseType();
+    const reason = document.getElementById("review_銷案原因")?.value;
+
+    let label = '';
+    if (type === 'unreversible') label = '不可逆缺失項';
+    if (type === 'reversible') label = '可逆缺失項';
+    if (type === 'suggestion') label = '建議事項';
+
+    let showBalloonSelect = false;
+    let options = [];
+
+    // ===== 判斷是否顯示 select =====
+    if ((type === 'unreversible' || type === 'reversible') && caseType === "TB") {
+      showBalloonSelect = true;
+      options = REVIEW_OPTIONS.hasOwnProperty(reason)
+        ? getReviewOptions(reason, type)
+        : []; // 歷史 reason
+    }
+
+    let selectHTML = "", balloonHTML = "", textareaHTML = "";
+    let selectDefault = selectVal;
+    let inputVal = content;
+
+    // ===== 核心邏輯（統一判斷）=====
+    const hasReason = REVIEW_OPTIONS.hasOwnProperty(reason);
+    const matched = options.find(opt => opt.value === selectDefault);
+
+    if (showBalloonSelect) {
+
+      // ===== select =====
+      selectHTML = `<select class="form-select form-select-sm"
+                      style="width:160px;max-width:180px;display:inline-block;"
+                      onchange="updateBalloon(this)">
+        <option value="">請選擇</option>`;
+
+      options.forEach(opt => {
+        selectHTML += `<option value="${opt.value}" ${matched && matched.value === opt.value ? 'selected' : ''}>
+          ${opt.value}
+        </option>`;
+      });
+
+      // 🔑 歷史類別補 option
+      if (selectDefault && !matched) {
+        selectHTML += `<option value="${escapeHtml(selectDefault)}" selected data-legacy="true">
+          ${escapeHtml(selectDefault)}
+        </option>`;
+      }
+
+      selectHTML += `</select>`;
+
+      // ===== 氣球 =====
+      let balloonText = "";
+
+      if (selectDefault) {
+        if (!hasReason) {
+          // 🔥 整個 reason 不存在
+          balloonText = "歷史類別";
+        } else if (!matched) {
+          // 🔥 舊選項
+          balloonText = "歷史類別";
+        } else {
+          // ✅ 正常說明
+          balloonText = escapeHtml(matched.info || "").replace(/\n+/g, "");
+        }
+      }
+
+      balloonHTML = `
+        <span class="popover-info" 
+              tabindex="0"
+              data-bs-toggle="popover" 
+              data-bs-trigger="hover"
+              data-bs-custom-class="info-popover"
+              title="說明" 
+              data-bs-content='${balloonText}'
+              style="cursor:pointer; outline:none;">
+          ${getIcon('info', 'color:#5a7; vertical-align:middle;')}
+        </span>`;
+    }
+
+    // ===== textarea =====
+    textareaHTML = `<textarea id="${type}_input_${uuid}"
+        class="review-item-input"
+        placeholder="${label}內容"
+        rows="1"
+        style="resize:none;min-height:32px;overflow:hidden;"
+        oninput="autoGrow(this)">${inputVal}</textarea>`;
+
+    // ===== 圖片 =====
+    const imageRow = [
+      getIcon('camera', 'cursor:pointer; color:orange; vertical-align:middle;', 'onclick="handlePasteIconClick(this)" title="加入圖片"'),
+      `<img class="image-preview ms-1 ${imageBase64 || imageUrl ? '' : 'd-none'}" 
+            src="${imageBase64 || imageUrl || ''}" 
+            style="max-width:50px;max-height:50px;cursor:zoom-in; vertical-align:middle;" 
+            onclick="openImageModal(this)">`
+    ].join('\n');
+
+    const deleteHTML = getIcon(
+      'trash',
+      'cursor:pointer; color:#dc3545; vertical-align:middle;',
+      `onclick="removeReviewItem('${type}_item_${uuid}')" title="刪除項目"`
+    );
+
+    // ===== row =====
+    const row = document.createElement('div');
+    row.className = 'review-item-row';
+    if (type === 'unreversible' || type === 'reversible') row.classList.add('checklist');
+    if (type === 'suggestion') row.classList.add('suggestion');
+
+    row.id = `${type}_item_${uuid}`;
+    row.dataset.type = type;
+    row.dataset.imageRemoved = "";
+
+    if (imageBase64) row.dataset.imageBase64 = imageBase64;
+    if (imageUrl) row.dataset.imageUrl = imageUrl;
+
+    row.innerHTML = [
+      `<input type="checkbox" id="${type}_check_${uuid}" ${checked ? "checked" : ""}>`,
+
+      (type !== 'suggestion') ? `
+        <span class="search-review-category"
+              title="搜尋缺失項"
+              style="cursor:pointer; display:inline-flex; align-items:center;"
+              onclick="openCategoryModal('${type}', this)">
+          ${getIcon('search')}
+        </span>` : '',
+
+      balloonHTML,
+      selectHTML,
+      textareaHTML,
+      imageRow,
+      deleteHTML
+    ].join('\n');
+
+    container.appendChild(row);
+
+    const textarea = row.querySelector('textarea');
+    if (textarea) autoGrow(textarea);
+
+    if (showBalloonSelect) {
+      const pop = row.querySelector('[data-bs-toggle="popover"]');
+      if (pop) new bootstrap.Popover(pop, { html: true, trigger: "hover" });
+    }
+  }
+
+  //更新氣球說明
+  function updateBalloon(select) {
+    const row = select.closest(".review-item-row");
+    const type = row.id.startsWith("unreversible") ? "unreversible" : "reversible";
+    const reason = document.getElementById("review_銷案原因")?.value;
+    const options = getReviewOptions(reason, type);
+    const val = select.value;
+    const pop = row.querySelector('[data-bs-toggle="popover"]');
+    if (pop) {
+      const found = options.find(opt => opt.value === val);
+      const text = found ? found.info.replace(/\n+/g, ""): "";
+      pop.setAttribute('data-bs-content', text);
+      // 強制更新popover內容（必要時可重新 new 一次）
+      new bootstrap.Popover(pop, { content: text, trigger: "hover", html: true });
+    }
+  }
+
+
+// 定義在全域
+function selectReviewCategory(value) {
+  if (lastCategorySelectElem) {
+    lastCategorySelectElem.value = value;
+    lastCategorySelectElem.dispatchEvent(new Event('change'));
+  }
+  const modal = bootstrap.Modal.getInstance(document.getElementById('reviewCategoryModal'));
+  if (modal) modal.hide();
+}
+
+function matchKeyword(option, kw) {
+  if (!kw) return true;
+  kw = kw.trim();
+  let searchArr = synonymDict[kw] ? [kw, ...synonymDict[kw]] : [kw];
+  for (let mappedKw of searchArr) {
+    if ((option.value && option.value.includes(mappedKw)) ||
+        (option.info && option.info.includes(mappedKw))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function highlightKeyword(str, keywords) {
+  // 濾除空字串
+  if (!keywords || !keywords.length) return str;
+  let validKeys = keywords.filter(k => k && k.trim() !== "");
+  if (!validKeys.length) return str; // 關鍵字都是空字串就直接回傳原字串
+  let pattern = validKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  let regex = new RegExp(pattern, 'gi');
+  return str.replace(regex, (m) => `<span class="search-highlight">${m}</span>`);
+}
+
+
+// 只在 openCategoryModal 裡執行和渲染
+function openCategoryModal(type, elem) {
+  const reason = document.getElementById("review_銷案原因")?.value;
+  const options = getReviewOptions(reason, type) || [];  // 這裡options必須有正確內容
+  const row = elem.closest('.review-item-row');
+  const select = row.querySelector('select');
+  lastCategorySelectElem = select;
+
+  const tbody = document.querySelector('#categoryTable tbody');
+  tbody.innerHTML = "";
+
+  // 組 trOptionMap 方便搜尋篩選
+  const trOptionMap = [];
+
+  // 初次渲染不高亮
+  options.forEach(opt => {
+    const tr = document.createElement('tr');
+    tr.style.cursor = "default";
+    tr.innerHTML = `
+      <td>
+        <span class="review-category-link"
+              onclick="selectReviewCategory('${opt.value}')"
+              >${highlightKeyword(opt.value, [])}</span>
+      </td>
+      <td>${highlightKeyword(opt.info, [])}</td>
+    `;
+    tbody.appendChild(tr);
+    trOptionMap.push({tr, opt});
+  });
+
+
+  // 只在這裡註冊一次 oninput
+  const searchInput = document.getElementById('categorySearchInput');
+  searchInput.value = "";
+  searchInput.oninput = function() {
+    const kw = this.value.trim();
+    // 判斷高亮陣列
+    let highlightKeys = kw ? (synonymDict[kw] ? [kw, ...synonymDict[kw]] : [kw]) : [];
+    trOptionMap.forEach(({tr, opt}) => {
+      if (matchKeyword(opt, kw)) {
+        tr.style.display = "";
+        tr.innerHTML = `
+          <td>
+            <span class="review-category-link"
+                  onclick="selectReviewCategory('${opt.value}')"
+                  >${highlightKeyword(opt.value, highlightKeys)}</span>
+          </td>
+          <td>${highlightKeyword(opt.info, highlightKeys)}</td>
+        `;
+      } else {
+        tr.style.display = "none";
+      }
+    });
+  };
+
+
+
+  // 最後打開 modal
+  const modal = new bootstrap.Modal(document.getElementById('reviewCategoryModal'));
+  modal.show();
+}
+  //==========搜尋功能===============
+
+  // 刪除銷案不合格項目
+  function removeReviewItem(rowId) {
+    const row = document.getElementById(rowId);
+    if (row) row.parentNode.removeChild(row);
+  }
+
+  // 收集區塊所有審核項目，同時回傳 {text, count}
+  function collectReviewItems(type) {
+    const container = document.getElementById(type + "_items");
+    const rows = container.querySelectorAll(".review-item-row");
+    const result = [];
+    rows.forEach(row => {
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      const select = row.querySelector('select');
+      const textarea = row.querySelector('textarea');
+      result.push({
+        checked: checkbox ? checkbox.checked : false,
+        select: select ? select.value : "",
+        remark: textarea ? textarea.value : ""
+      });
+    });
+    return {
+      json: JSON.stringify(result),
+      count: result.length
+    };
+  }
+
+
+  // 檢查審核者送出表單功能
+  let shouldCloseReviewModal = false;
+
+  function submitReviewDecision(action) {
+    // 只有「通過」或「退件」時才做檢查，暫存時完全不檢查
+    if (action !== "pending") {
+
+      // 1. 檢查所有下拉式選單（不可逆/可逆區塊有選單時）
+      let hasUnselected = false;
+      let hasDuplicate = false;
+      ["unreversible", "reversible"].forEach(type => {
+        const container = document.getElementById(type + "_items");
+        if (container) {
+          const selectedValues = [];
+          container.querySelectorAll("select").forEach(select => {
+            if (!select.disabled && (select.value === "" || select.value === "請選擇")) {
+              hasUnselected = true;
+            } else if (!select.disabled && select.value !== "" && select.value !== "請選擇") {
+              // 檢查同區塊內重複
+              if (selectedValues.includes(select.value)) {
+                hasDuplicate = true;
+              } else {
+                selectedValues.push(select.value);
+              }
+            }
+          });
+        }
+      });
+
+      if (hasUnselected) {
+        customAlert("請確認所有缺失項目是否選擇！");
+        return;
+      }
+
+      // 2. 檢查所有文本欄位（不可逆/可逆/建議事項，內容必填，含input和textarea）
+      let hasEmptyText = false;
+      ["unreversible", "reversible", "suggestion"].forEach(type => {
+        const container = document.getElementById(type + "_items");
+        if (container) {
+          container.querySelectorAll('input[type="text"], textarea').forEach(input => {
+            if (input.value.trim() === "") {
+              hasEmptyText = true;
+            }
+          });
+        }
+      });
+
+      if (hasEmptyText) {
+        customAlert("請確認所有缺失項/建議事項的內容都已填！");
+        return;
+      }
+
+      // 3. 若為「✅ 通過」則檢查所有核取方塊是否都已勾選
+      if (action === "approve") {
+        let hasUnchecked = false;
+        ["unreversible", "reversible", "suggestion"].forEach(type => {
+          const container = document.getElementById(type + "_items");
+          if (container) {
+            container.querySelectorAll('input[type="checkbox"]').forEach(chk => {
+              if (!chk.disabled && !chk.checked) {
+                hasUnchecked = true;
+              }
+            });
+          }
+        });
+        if (hasUnchecked) {
+          customAlert("請確認所有項目的核取方塊都已勾選！");
+          return;
+        }
+      }
+    }
+
+    // 判斷是否關閉表單
+    if (action === 'approve' || action === 'reject') {
+      shouldCloseReviewModal = true;
+    } else {
+      shouldCloseReviewModal = false;
+    }
+
+    // ⭐⭐ 通過所有檢查，或暫存時直接通過
+    confirmAndSubmitNoLoading(function(onComplete) {
+      doSubmitReviewDecision(action, onComplete);
+    });
+  }
+  
+  // ✅ 修改版 doSubmitReviewDecision：支援 imageRemoved 標記
+  async function doSubmitReviewDecision(action, onComplete) {
+    const reviewerName = document.getElementById("name").innerText.trim();
+    const now = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    const nowStr = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    let status = "";
+    if (action === "approve") status = "approved";
+    else if (action === "reject") status = "rejected";
+    else if (action === "pending") status = "pending";
+    else return;
+
+    // 🧾 抓取表單資料
+    const tbNumber = document.getElementById("review_總編號").value;
+    const endDate = document.getElementById("review_結束治療日").value;
+    const caseType = getSelectedReviewCaseType();
+    const reason = document.getElementById("review_銷案原因").value;
+    const deadline = calcDisposalDeadline(caseType, endDate, reason);
+    const folderName = `${endDate}-${tbNumber}`;
+
+    const allReviewItems = {
+      unreversible: [],
+      reversible: [],
+      suggestion: []
+    };
+
+    const allRows = [...document.querySelectorAll('.review-item-row')];
+    const imageUploadQueue = [];
+
+    for (const row of allRows) {
+      const type = row.dataset.type;
+      if (!allReviewItems[type]) continue;
+
+      const checked = row.querySelector('input[type="checkbox"]')?.checked || false;
+      const selectVal = row.querySelector('select')?.value || '';
+      const remark = row.querySelector('textarea')?.value || '';
+      const base64 = row.dataset.imageBase64 || '';
+      const imageUrl = row.dataset.imageUrl || '';
+
+      let finalImageUrl = imageUrl;
+      if (row.dataset.imageRemoved === 'true') {
+        finalImageUrl = '';
+      } else if (base64) {
+        // 有圖片要上傳
+        finalImageUrl = '';
+        imageUploadQueue.push({ row, type, base64 });
+      }
+
+      allReviewItems[type].push({
+        checked,
+        select: selectVal,
+        remark,
+        imageUrl: finalImageUrl
+      });
+    }
+
+    // 🕒 從 fullDisposalData 找出申請時間（唯一鍵用）
+    const headers = fullDisposalData[0];
+    const tbIndex = headers.indexOf("總編號");
+    const applyTimeIdx = headers.indexOf("申請時間");
+    // ✅ 申請時間一律使用「開啟表單時已鎖定的那一筆」
+    const applyTime = document.body.dataset.applyTime || "";
+
+    if (!applyTime) {
+      alert("⚠️ 無法取得申請時間，請重新開啟案件後再送出");
+      return;
+    }
+
+    // 🔍 同時記錄 rowIdx 供前端快取更新使用
+    const rowIdx = fullDisposalData.findIndex((row, i) => i > 0 && row[tbIndex] === tbNumber);
+
+    // ✅ 組合送出資料
+    const data = {
+      reason,
+      caseType,
+      tb: tbNumber,
+      status,
+      endDate,
+      reviewerName,
+      time: nowStr,
+      deadline,
+      applyTime, // ✅ 改這裡
+      unit: document.getElementById("userUnit")?.innerText.trim() || "",
+      備註: document.getElementById("review_備註").value.trim(),
+      unreversible: JSON.stringify(allReviewItems.unreversible),
+      unreversibleCount: allReviewItems.unreversible.length,
+      reversible: JSON.stringify(allReviewItems.reversible),
+      reversibleCount: allReviewItems.reversible.length,
+      suggestion: JSON.stringify(allReviewItems.suggestion),
+      suggestionCount: allReviewItems.suggestion.length
+    };
+
+    if (action === "reject") {
+      data.rejectCount = parseInt(document.getElementById("review_退件次數").value || "0", 10) + 1;
+    }
+
+    // 📊 前端快取更新
+    if (rowIdx !== -1) {
+      const row = fullDisposalData[rowIdx];
+      headers.forEach((header, idx) => {
+        if (typeof row[idx] === "undefined") row[idx] = "";
+        switch (header) {
+          case "個案類型": row[idx] = data.caseType; break;
+          case "結束治療日": row[idx] = data.endDate.replace(/-/g, "/"); break;
+          case "銷案原因": row[idx] = data.reason; break;
+          case "審核狀態": row[idx] = data.status; break;
+          case "不可逆缺失項": row[idx] = data.unreversible; break;
+          case "不可逆缺失項數": row[idx] = data.unreversibleCount; break;
+          case "可逆缺失項": row[idx] = data.reversible; break;
+          case "可逆缺失項數": row[idx] = data.reversibleCount; break;
+          case "建議事項": row[idx] = data.suggestion; break;
+          case "建議事項數": row[idx] = data.suggestionCount; break;
+          case "備註": row[idx] = data.備註; break;
+          case "銷案期限": row[idx] = data.deadline; break;
+          case "審核通過時間":
+            if (data.status === "approved") row[idx] = data.time;
+            break;
+          case "審核通過者":
+            if (data.status === "approved") row[idx] = data.reviewerName;
+            break;
+          case "退件次數":
+            if (data.status === "rejected") row[idx] = data.rejectCount;
+            break;
+          case "前次退件時間":
+            if (data.status === "rejected") row[idx] = data.time;
+            break;
+          default: break;
+        }
+      });
+      renderTableWithFilter();
+    }
+
+    // 🚀 若沒有圖片要上傳 → 直接送出
+    if (imageUploadQueue.length === 0) {
+      google.script.run.submitReviewDecision(data);
+      if (typeof onComplete === "function") onComplete("執行完成！");
+      return;
+    }
+
+    // 🖼️ 有圖片 → 顯示上傳進度
+    const uploadModal = new bootstrap.Modal(document.getElementById("uploadModal"));
+    const progressBar = document.getElementById("uploadProgressBar");
+    uploadModal.show();
+
+    try {
+      const total = imageUploadQueue.length;
+      let completed = 0;
+
+      for (const { row, type, base64 } of imageUploadQueue) {
+        const filename = `${type}_${tbNumber}_${Date.now()}`;
+
+        await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(url => {
+              row.dataset.imageUrl = url;
+              delete row.dataset.imageBase64;
+
+              const rowsOfType = Array.from(document.querySelectorAll(`#${type}_items .review-item-row`));
+              const indexInType = rowsOfType.indexOf(row);
+              allReviewItems[type][indexInType].imageUrl = url;
+
+            // console.log(`✅ 已更新 imageUrl：${type} 第 ${indexInType} 筆為 ${url}`);
+
+              const headerKey = type === "unreversible" ? "不可逆缺失項" :
+                                type === "reversible"   ? "可逆缺失項" :
+                                                          "建議事項";
+              const headerIdx = headers.indexOf(headerKey);
+              if (rowIdx !== -1 && headerIdx !== -1) {
+                const rowInSheet = fullDisposalData[rowIdx];
+                let itemsArr = [];
+                try {
+                  itemsArr = JSON.parse(rowInSheet[headerIdx] || "[]");
+                } catch (e) {
+                  itemsArr = [];
+                }
+                if (itemsArr[indexInType]) {
+                  itemsArr[indexInType].imageUrl = url;
+                  rowInSheet[headerIdx] = JSON.stringify(itemsArr);
+                }
+              }
+
+              completed++;
+              const percent = Math.round((completed / total) * 100);
+              progressBar.style.width = `${percent}%`;
+              progressBar.innerText = `${percent}%`;
+
+              resolve(url);
+            })
+            .withFailureHandler(err => {
+              alert("圖片上傳失敗：" + err.message);
+              reject(err);
+            })
+            .uploadImageBase64ToDrive(base64, folderName, filename);
+        });
+      }
+
+      data.unreversible = JSON.stringify(allReviewItems.unreversible);
+      data.reversible = JSON.stringify(allReviewItems.reversible);
+      data.suggestion = JSON.stringify(allReviewItems.suggestion);
+
+      google.script.run.withSuccessHandler(() => {
+        // 關閉上傳中 Modal（保留 100%，不立即歸零）
+        uploadModal.hide();
+
+        // 等到動畫結束再處理
+        const handler = () => {
+          const modalEl = document.getElementById("uploadModal");
+          modalEl.removeEventListener("hidden.bs.modal", handler);
+
+          // 👇 在這裡歸零
+          const progressBar = document.getElementById("uploadProgressBar");
+          if (progressBar) {
+            progressBar.style.width = "0%";
+            progressBar.innerText = "0%";
+          }
+
+          // 顯示執行完成的 Modal
+          bootstrap.Modal.getOrCreateInstance(
+            document.getElementById("updateCompleteModal")
+          ).show();
+
+          if (typeof onComplete === "function") onComplete("執行完成！");
+        };
+
+        document.getElementById("uploadModal").addEventListener("hidden.bs.modal", handler);
+      }).submitReviewDecision(data);
+
+    } catch (e) {
+      uploadModal.hide();
+      progressBar.style.width = "0%";
+      progressBar.innerText = "0%";
+      alert("圖片上傳過程發生錯誤：" + e.message);
+    }
+  }
+
+
+// ✅ 加入可在主畫面每列上移除預覽圖的函式
+function removeImageFromRow(buttonEl) {
+  const row = buttonEl.closest(".review-item-row");
+  if (!row) return;
+  delete row.dataset.imageBase64;
+  delete row.dataset.imageUrl;
+  row.dataset.imageRemoved = "true";
+
+  const img = row.querySelector(".image-preview");
+  if (img) {
+    img.src = "";
+    img.classList.add("d-none");
+  }
+} 
+
+
+document.getElementById('updateCompleteModal').addEventListener('hidden.bs.modal', function () {
+  if (shouldCloseReviewModal) {
+    const reviewModalEl = document.getElementById('reviewModal');
+    if (reviewModalEl) {
+      const reviewModal = bootstrap.Modal.getInstance(reviewModalEl);
+      if (reviewModal) reviewModal.hide();
+    }
+    shouldCloseReviewModal = false;
+  }
+});
+
+
+
+
+  //取消銷案
+  function cancelPassedReview() {
+    const tb = document.getElementById("review_總編號").value;
+    const endDate = document.getElementById("review_結束治療日").value; // ✅ 新增
+    const reviewerName = document.getElementById("name").innerText.trim();
+
+    const confirmModalEl = document.getElementById('confirmUpdateModal');
+    const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalEl);
+    confirmModal.show();
+
+    const btn = document.getElementById('confirmUpdateBtn');
+    if (window.cancelPassedReviewHandler) {
+      btn.removeEventListener('click', window.cancelPassedReviewHandler);
+    }
+
+    window.cancelPassedReviewHandler = function doConfirm() {
+      confirmModal.hide();
+      btn.removeEventListener('click', window.cancelPassedReviewHandler);
+
+      const now = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      const nowStr = `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      const headers = fullDisposalData[0];
+      const rows = fullDisposalData.slice(1);
+      const tbIdx = headers.indexOf("總編號");
+      const endIdx = headers.indexOf("結束治療日");
+
+      // ✅ 用 總編號+結束治療日 找 row
+      const rowData = rows.find(row =>
+        String(row[tbIdx]).trim() === tb &&
+        String(row[endIdx]).replace(/-/g,"/").trim() === endDate.replace(/-/g,"/").trim()
+      );
+
+      if (!rowData) {
+        console.warn("⚠️ 找不到 TB:", tb, "EndDate:", endDate);
+        return;
+      }
+
+      function safeParse(str) {
+        if (!str) return [];
+        try { return JSON.parse(str); } catch(e) { return []; }
+      }
+      const unreversibleArr = safeParse(rowData[headers.indexOf("不可逆缺失項")]);
+      const reversibleArr = safeParse(rowData[headers.indexOf("可逆缺失項")]);
+      const suggestionArr = safeParse(rowData[headers.indexOf("建議事項")]);
+
+      const data = {
+        tb,
+        endDate,   // ✅ 帶上結束治療日
+        status: "⏪ 取消銷案",
+        reviewerName,
+        time: nowStr,
+        applyTime: document.body.dataset.applyTime || "",
+        reason: rowData[headers.indexOf("銷案原因")],
+        caseType: rowData[headers.indexOf("個案類型")],
+        unreversible: JSON.stringify(unreversibleArr),
+        unreversibleCount: unreversibleArr.length,
+        reversible: JSON.stringify(reversibleArr),
+        reversibleCount: reversibleArr.length,
+        suggestion: JSON.stringify(suggestionArr),
+        suggestionCount: suggestionArr.length,
+        deadline: rowData[headers.indexOf("銷案期限")],
+      };
+
+      // ✅ 更新本地快取
+      const statusIdx = headers.indexOf("審核狀態");
+      for (let i = 1; i < fullDisposalData.length; i++) {
+        if (String(fullDisposalData[i][tbIdx]).trim() === tb &&
+            String(fullDisposalData[i][endIdx]).replace(/-/g,"/").trim() === endDate.replace(/-/g,"/").trim()) {
+          fullDisposalData[i][statusIdx] = "⏪ 取消銷案";
+          break;
+        }
+      }
+      renderTableWithFilter();
+
+      // 完成訊息
+      const completeModalEl = document.getElementById('updateCompleteModal');
+      const completeModal = bootstrap.Modal.getOrCreateInstance(completeModalEl);
+      document.getElementById('updateCompleteMessage').innerText = "執行完成";
+      completeModal.show();
+
+      // 關閉唯讀 modal
+      closeReviewModal();
+
+      // 後台非同步呼叫 GAS
+      google.script.run.submitReviewDecision(data);
+    };
+
+    btn.addEventListener('click', window.cancelPassedReviewHandler);
+  }
+
+
+
+  //  關閉審核表單
+  function closeReviewModal() {
+    const modalEl = document.getElementById('reviewModal');
+    const modalObj = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modalObj.hide();
+  }
+
+  //審核者抽回
+  function recallReviewAction() {
+    const tb = document.getElementById("review_總編號").value;
+    const endDate = document.getElementById("review_結束治療日").value; // ✅ 多取結束治療日
+    const reviewerName = document.getElementById("name").innerText.trim();
+
+    const confirmModalEl = document.getElementById('confirmRecallModal');
+    const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalEl);
+    confirmModal.show();
+
+    const btn = document.getElementById('confirmRecallBtn');
+    if (window.recallReviewHandler) {
+      btn.removeEventListener('click', window.recallReviewHandler);
+    }
+
+    window.recallReviewHandler = function doConfirm() {
+      confirmModal.hide();
+      btn.removeEventListener('click', window.recallReviewHandler);
+
+      const now = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      const nowStr = `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      const headers = fullDisposalData[0];
+      const rows = fullDisposalData.slice(1);
+      const tbIdx = headers.indexOf("總編號");
+      const endIdx = headers.indexOf("結束治療日");
+
+      // ✅ 用 總編號+結束治療日 找 row
+      const rowData = rows.find(row =>
+        String(row[tbIdx]).trim() === tb &&
+        String(row[endIdx]).replace(/-/g,"/").trim() === endDate.replace(/-/g,"/").trim()
+      );
+
+      if (!rowData) {
+        console.warn("⚠️ 找不到 TB:", tb, "EndDate:", endDate);
+        return;
+      }
+
+      const data = {
+        tb,
+        endDate,    // ✅ 帶上結束治療日
+        status: "⌛ 處理中",
+        reviewerName,
+        time: nowStr,
+        applyTime: document.body.dataset.applyTime || "",
+        reason: rowData[headers.indexOf("銷案原因")],
+        caseType: rowData[headers.indexOf("個案類型")],
+        originalEndDate: document.body.dataset.originalEndDate || "",
+        unit: document.getElementById("userUnit")?.innerText.trim() || "",
+        unreversible: rowData[headers.indexOf("不可逆缺失項")] || "[]",
+        unreversibleCount: parseInt(rowData[headers.indexOf("不可逆缺失項數")] || "0", 10),
+        reversible: rowData[headers.indexOf("可逆缺失項")] || "[]",
+        reversibleCount: parseInt(rowData[headers.indexOf("可逆缺失項數")] || "0", 10),
+        suggestion: rowData[headers.indexOf("建議事項")] || "[]",
+        suggestionCount: parseInt(rowData[headers.indexOf("建議事項數")] || "0", 10),
+        deadline: rowData[headers.indexOf("銷案期限")]
+      };
+
+      // 本地快取更新
+      const statusIdx = headers.indexOf("審核狀態");
+      const recallCntIdx = headers.indexOf("局抽回次數");
+      const recallTimeIdx = headers.indexOf("局前次抽回時間");
+
+      for (let i = 1; i < fullDisposalData.length; i++) {
+        if (String(fullDisposalData[i][tbIdx]).trim() === tb &&
+            String(fullDisposalData[i][endIdx]).replace(/-/g,"/").trim() === endDate.replace(/-/g,"/").trim()) {
+          fullDisposalData[i][statusIdx] = "⌛ 處理中";
+          fullDisposalData[i][recallCntIdx] = (parseInt(fullDisposalData[i][recallCntIdx] || "0", 10) + 1);
+          fullDisposalData[i][recallTimeIdx] = nowStr;
+          break;
+        }
+      }
+      renderTableWithFilter();
+
+      // 彈出完成訊息
+      const completeModalEl = document.getElementById('updateCompleteModal');
+      const completeModal = bootstrap.Modal.getOrCreateInstance(completeModalEl);
+      document.getElementById('updateCompleteMessage').innerText = "已抽回";
+      completeModal.show();
+
+      closeReviewModal();
+
+      // 後端呼叫
+      google.script.run.recallReview(data);
+    };
+
+    btn.addEventListener('click', window.recallReviewHandler);
+  }
+
+
+//============↑↑↑↑↑↑↑審核者表單功能↑↑↑↑↑↑↑============
+
+
+//============↓↓↓↓↓↓↓補件者表單功能↓↓↓↓↓↓↓============
+  // 補件者提交表單功能
+  function submitEditorPatch() {
+    setActionButtonsDisabled(true);
+
+    // 🧩 核取框（暫保留 editor_）
+    let hasUnchecked = false;
+    ["unreversible", "reversible", "suggestion"].forEach(type => {
+      const container = document.getElementById(type + "_items");
+      if (container) {
+        container.querySelectorAll('input[type="checkbox"]').forEach(chk => {
+          if (!chk.disabled && !chk.checked) hasUnchecked = true;
+        });
+      }
+    });
+
+    if (hasUnchecked) {
+      customAlert("請確認所有項目的核取方塊都已勾選！");
+      setActionButtonsDisabled(false);
+      return;
+    }
+
+    // ✅ 改為 review_
+    const tb = document.getElementById("review_總編號").value.trim();
+
+    const applyTime =
+      document.getElementById("review_申請時間")?.value ||
+      document.getElementById("review_申請時間")?.innerText ||
+      document.body.dataset.applyTime ||
+      "";
+
+    if (!applyTime) {
+      customAlert("⚠️ 無法取得申請時間，請重新載入列表！");
+      setActionButtonsDisabled(false);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        setActionButtonsDisabled(false);
+
+        if (!res.found) {
+          customAlert("⚠️ 找不到案件，請重新載入列表！");
+          return;
+        }
+
+        if (["⌛ 處理中", "⏪ 取消銷案", "✅ 通過"].includes(res.status)) {
+          customAlert("此案件已被審核者抽回或非退件狀態，無法補件！");
+          closeReviewModal(); // ✅ 改
+          return;
+        }
+
+        confirmAndSubmitNoLoading(function(onComplete) {
+          doSubmitEditorPatch(onComplete);
+        });
+      })
+      .checkCaseStatus(tb, applyTime);
+  }
+
+  function doSubmitEditorPatch(onComplete) {
+    const unreversible = collectEditorItems("unreversible");
+    const reversible = collectEditorItems("reversible");
+    const suggestion = collectEditorItems("suggestion");
+
+    // ✅ 改為 review_
+    const tbNumber = document.getElementById("review_總編號").value;
+    const editorName = document.getElementById("name").innerText.trim();
+
+    const now = new Date();
+    const nowStr =
+      now.getFullYear() + "/" +
+      String(now.getMonth() + 1).padStart(2, "0") + "/" +
+      String(now.getDate()).padStart(2, "0") + " " +
+      String(now.getHours()).padStart(2, "0") + ":" +
+      String(now.getMinutes()).padStart(2, "0") + ":" +
+      String(now.getSeconds()).padStart(2, "0");
+
+    // ✅ 改為 review_
+    const caseType = getSelectedEditorCaseType(); // ⚠️ 先不動（避免壞）
+    const endDate = document.getElementById("review_結束治療日").value;
+    const reason = document.getElementById("review_銷案原因").value;
+    const deadline = calcDisposalDeadline(caseType, endDate, reason);
+
+    const patchCount = parseInt(document.getElementById("review_補件次數").value || "0", 10);
+
+    const applyTime = document.body.dataset.applyTime || "";
+
+    if (!applyTime) {
+      alert("⚠️ 無法取得申請時間，請重新開啟案件後再補件");
+      return;
+    }
+
+    const data = {
+      caseType: caseType,
+      tb: tbNumber,
+      applyTime: applyTime,
+      unreversible: unreversible.json,
+      unreversibleCount: unreversible.count,
+      reversible: reversible.json,
+      reversibleCount: reversible.count,
+      suggestion: suggestion.json,
+      suggestionCount: suggestion.count,
+      patchName: editorName,
+      patchTime: nowStr,
+      patchCount: patchCount,
+      endDate: endDate,
+      reason: reason,
+      deadline: deadline,
+      備註: document.getElementById("review_備註").value.trim()
+    };
+
+    const headers = fullDisposalData[0];
+    const tbIndex = headers.indexOf("總編號");
+    const applyTimeIdx = headers.indexOf("申請時間");
+
+    const rowIdx = fullDisposalData.findIndex((row, i) =>
+      i > 0 &&
+      String(row[tbIndex]).trim() === tbNumber.trim() &&
+      String(row[applyTimeIdx]).trim() === applyTime
+    );
+
+    if (rowIdx !== -1) {
+      const row = fullDisposalData[rowIdx];
+
+      headers.forEach((header, idx) => {
+        switch (header) {
+          case "個案類型": row[idx] = caseType; break;
+          case "審核狀態": row[idx] = "🔄 補件"; break;
+          case "結束治療日": row[idx] = endDate.replace(/-/g, "/"); break;
+          case "銷案原因": row[idx] = reason; break;
+          case "銷案期限": row[idx] = deadline; break;
+          case "不可逆缺失項": row[idx] = data.unreversible; break;
+          case "不可逆缺失項數": row[idx] = data.unreversibleCount; break;
+          case "可逆缺失項": row[idx] = data.reversible; break;
+          case "可逆缺失項數": row[idx] = data.reversibleCount; break;
+          case "建議事項": row[idx] = data.suggestion; break;
+          case "建議事項數": row[idx] = data.suggestionCount; break;
+          case "備註": row[idx] = data.備註; break;
+          case "補件次數": row[idx] = patchCount + 1; break;
+          case "前次補件時間": row[idx] = nowStr; break;
+          default: break;
+        }
+      });
+
+      renderTableWithFilter();
+    } else {
+      console.warn("⚠️ 前端快取找不到對應列", { tbNumber, applyTime });
+    }
+
+    if (typeof onComplete === "function") onComplete("執行完成！");
+
+    closeReviewModal(); // ✅ 改這裡
+
+    google.script.run.submitEditorPatch(data);
+  }
+
+  //補件者分析審核項目核曲方塊
+  function collectEditorItems(type) {
+    const container = document.getElementById(type + "_items"); 
+    if (!container) return { json: "[]", count: 0 };
+
+    const result = [];
+    const rows = container.querySelectorAll(".review-item-row");
+
+    rows.forEach(row => {
+      const input = row.querySelector("textarea");
+      const checkbox = row.querySelector("input[type='checkbox']");
+      const select = row.querySelector("select");
+
+      result.push({
+        remark: input?.value.trim() || "",
+        checked: checkbox?.checked || false,
+        select: select?.value || "",
+        imageUrl: row.dataset.imageUrl || ""
+      });
+    });
+
+    return {
+      json: JSON.stringify(result),
+      count: result.length
+    };
+  }
+
+  // 開啟補件者唯讀表單（和 buildFormForReadonly 結構完全一樣，只是 id 換 editorReadonly_）
+
+
+//============↑↑↑↑↑↑↑補件者表單功能↑↑↑↑↑↑↑============
+
+
+//============↓↓↓↓↓↓↓登出↓↓↓↓↓↓↓============
+function logout() {
+  // 1. 清空 main 畫面的個人資訊（視需要）
+  document.getElementById("name").innerText = "";
+  document.getElementById("userUnit").innerText = "";
+
+  document.getElementById("account").value = "";
+  document.getElementById("password").value = "";
+
+  // 2. 隱藏 main 顯示 login（SPA 標準做法）
+  showLoginSection();
+  // 3. 清空其他需要 reset 的快取資料或欄位（依你業務需求）
+  // 例如：如果有用 localStorage 存使用者資訊，也一併清空
+  // localStorage.removeItem("currentUser");
+}
+
+//===========判斷點擊動作是不是跟當天一致===============
+function checkLoginDateValid() {
+  const todayStr = getTodayString();
+
+  // ✅ 尚未登入 → 直接略過
+  if (!currentUser || !currentUser.loginDate) {
+    //console.log("尚未登入階段，跳過檢查");
+    return true;
+  }
+
+  //console.log("登入日期:", currentUser.loginDate);
+  //console.log("現在日期:", todayStr);
+
+  if (currentUser.loginDate !== todayStr) {
+    //console.log("❌ 日期不同，強制登出");
+    forceReload();
+    return false;
+  }
+
+  //console.log("✅ 日期相同");
+  return true;
+}
+
+// 在 main.html 中修改你的檢查邏輯
+function forceReload() {
+  const appUrl = document.getElementById("webAppUrl")?.value;
+  //console.log("偵測到的網址為:", appUrl);
+
+  if (appUrl) {
+    // 1. 先跳出警告訊息，阻斷後續執行直到使用者點擊「確定」
+    alert("⚠️ 已跨日或版本過期！系統將自動重新載入。");
+
+    // 2. 使用者點擊確定後，執行跳轉
+    window.open(appUrl, '_top');
+    
+    // 3. 清空畫面，增加「正在處理」的視覺感
+    document.body.innerHTML = `
+      <div style="text-align:center; margin-top:100px; font-family:sans-serif;">
+        <h1 style="color:#2f6b87;">系統更新中</h1>
+        <p>正在載入最新環境，請稍候...</p>
+      </div>
+    `;
+  } else {
+    alert("自動更新失敗，請手動按下 F5 重新整理網頁。");
+    window.location.reload();
+  }
+}
+
+document.addEventListener("click", function() {
+  checkLoginDateValid();
+});
+
+//============↑↑↑↑↑↑↑登出↑↑↑↑↑↑↑============
+
+
+
+//==============選擇彈框模塊===============
+
+
+
+let confirmUpdateBtnHandler_NoLoading = null;
+
+
+//==============選擇彈框模塊===============
+
+  // 通用排序，支援 emoji, 中文, 英文, 數字
+  function smartCompare(a, b) {
+    a = a ? a.toString() : "";
+    b = b ? b.toString() : "";
+    // 純數字優先
+    if (!isNaN(a) && !isNaN(b) && a !== "" && b !== "") {
+      return Number(a) - Number(b);
+    }
+    // emoji/中/英/符號等
+    return a.localeCompare(b, 'zh-Hant-u-co-emoji', { numeric: true });
+  }
+
+  //匯出銷案清單
+  function exportDisposalExcel() {
+    if (!cachedDisposalData || !cachedDisposalData.all || cachedDisposalData.all.length === 0) {
+      alert("目前沒有可匯出的資料！");
+      return;
+    }
+
+    // 使用者單位
+    const unitEl = document.getElementById("userUnit");
+    const userUnit = unitEl ? unitEl.innerText.trim() : "";
+
+    // 原始資料（AOA）
+    const rawData = cachedDisposalData.all;
+
+    // 原始標題列
+    const rawHeaders = rawData[0];
+
+    // ❌ 固定要排除的欄位
+    const removeCols = ["不可逆缺失項", "可逆缺失項", "建議事項"];
+
+    // 找出固定欄位的 index
+    let removeIdxs = removeCols
+      .map(col => rawHeaders.indexOf(col))
+      .filter(idx => idx !== -1);
+
+    // 🔴 排除「各類缺失項目的筆數」，但【保留】直接列不合格項(不可逆)
+    rawHeaders.forEach((col, idx) => {
+      const colName = String(col).trim();
+
+      // 符合【xxx】筆數
+      const isLossCountCol = /^【.+】筆數$/.test(colName);
+
+      // 例外保留的欄位
+      const isDirectFailCol = colName === "【直接列不合格項(不可逆)】筆數";
+
+      if (isLossCountCol && !isDirectFailCol) {
+        removeIdxs.push(idx);
+      }
+    });
+
+    // 去重 + 由大到小排序（splice 安全）
+    removeIdxs = [...new Set(removeIdxs)].sort((a, b) => b - a);
+
+    // 找「管理單位」欄位 index
+    const unitIdx = rawHeaders.indexOf("管理單位");
+    if (unitIdx === -1) {
+      alert("資料中找不到「管理單位」欄位，無法匯出！");
+      return;
+    }
+
+    // 🔹 依使用者單位過濾資料
+    let exportRows = [];
+    if (userUnit === "衛生局") {
+      exportRows = rawData.slice(1);
+    } else {
+      exportRows = rawData
+        .slice(1)
+        .filter(row => String(row[unitIdx] || "").trim() === userUnit);
+    }
+
+    if (exportRows.length === 0) {
+      alert("沒有符合條件的資料可匯出！");
+      return;
+    }
+
+    // 🔹 移除不需要的欄位（資料列）
+    const cleanedRows = exportRows.map(row => {
+      const newRow = row.slice();
+      removeIdxs.forEach(idx => newRow.splice(idx, 1));
+      return newRow;
+    });
+
+    // 🔹 處理標題列
+    const cleanedHeaders = rawHeaders.slice();
+    removeIdxs.forEach(idx => cleanedHeaders.splice(idx, 1));
+
+    // 組成最終匯出資料
+    const exportData = [cleanedHeaders, ...cleanedRows];
+
+    // 建立工作表
+    const ws = XLSX.utils.aoa_to_sheet(exportData);
+
+    // 建立工作簿
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "銷案清單");
+
+    // 檔名
+    const fileName =
+      userUnit === "衛生局"
+        ? "銷案清單.xlsx"
+        : `銷案清單_${userUnit}.xlsx`;
+
+    // 匯出 Excel
+    XLSX.writeFile(wb, fileName);
+  }
+
+
+  //警告模塊內文
+  function customAlert(msg) {
+    const modalEl = document.getElementById('customAlertModal');
+    if (!modalEl) {
+      alert(msg);  // fallback
+      return;
+    }
+    const msgEl = modalEl.querySelector('#customAlertMessage');
+    if (msgEl) msgEl.textContent = msg;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
+
+
+function openImageModal(imgElement) {
+  const modal = new bootstrap.Modal(document.getElementById("imagePreviewModal"));
+  const modalImg = document.getElementById("imagePreviewModalImg");
+  if (!imgElement || !modalImg) return;
+
+  modalImg.src = imgElement.src;
+  modal.show();
+}
+
+// 預覽圖變更
+function handleImageChange(input, previewId) {
+  const row = input.closest(".review-item-row");
+  const file = input.files[0];
+  const preview = document.getElementById(previewId);
+
+  if (!file) {
+    row.dataset.imageBase64 = '';
+    row.dataset.imageRemoved = 'true';
+    preview.src = '';
+    preview.classList.add('d-none');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    row.dataset.imageBase64 = e.target.result;
+    delete row.dataset.imageRemoved; // 取消刪除標記
+    preview.src = e.target.result;
+    preview.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+}
+
+// 點擊小圖放大
+function openImageModal(img) {
+  const modalImg = document.getElementById('modalImage');
+  modalImg.src = img.src;
+  const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+  modal.show();
+}
+
+// 移除圖片按鈕邏輯
+document.getElementById("removePastedImage").addEventListener("click", function () {
+  tempBase64Image = "";
+  const preview = document.getElementById("pasteImagePreview");
+  preview.src = "";
+  preview.style.display = "none";
+
+  // 清空畫布
+  const pasteArea = document.getElementById("pasteImageArea");
+  pasteArea.innerHTML = "請在此處按 Ctrl+V 貼上圖片";
+});
+
+  // ======== 🎬 控制「執行完成」動畫播放 ========
+  document.addEventListener("DOMContentLoaded", () => {
+    const doneModalEl = document.getElementById("updateCompleteModal");
+    const container   = document.getElementById("lottieContainer");
+    const defaultSrc  = "https://lottie.host/d753c08b-422f-464c-b429-462876070a8b/G9ruIpSvEo.lottie";
+
+    let player = null;
+
+    // 🟢 Modal 開啟：建立並播放動畫（只播一次）
+    doneModalEl.addEventListener("shown.bs.modal", () => {
+      // 確保不殘留任何舊節點
+      container.innerHTML = "";
+
+      // 建立 dotlottie-wc（一次性元件）
+      player = document.createElement("dotlottie-wc");
+
+      // ⭐ 關鍵設定（一定要在 append 之前）
+      player.setAttribute("src", defaultSrc);
+      player.setAttribute("autoplay", ""); // 初始化即播放
+      player.setAttribute("speed", "1.5");   // ⭐ 要調速度只改這行（例：1.5、2、2.5）
+
+      // 尺寸（外框控制即可）
+      player.style.width  = "170px";
+      player.style.height = "170px";
+      player.style.display = "block";
+
+      // 掛上 DOM → 觸發初始化與播放
+      container.appendChild(player);
+    });
+
+    // 🟤 Modal 關閉：完整清除，避免殘影
+    doneModalEl.addEventListener("hidden.bs.modal", () => {
+      if (player) {
+        // stop 不是必要，但有就呼叫（安全寫法）
+        try {
+          player.stop?.();
+        } catch (e) {}
+
+        // ✅ 關鍵：移除整個節點，Shadow DOM 一併清掉
+        container.innerHTML = "";
+        player = null;
+      }
+    });
+  });
+
+// ==================================================================優化作業========================================================
+// ===== [新增] 欄位存取統一入口 =====
+function getField(name, prefix = "review") {
+  return document.getElementById(`${prefix}_${name}`);
+}
+function setEditable(isEditable, prefix = "review") {
+
+  const modal = document.getElementById(prefix + "Modal");
+  if (!modal) return;
+
+  modal.querySelectorAll("input, select, textarea").forEach(el => {
+    // 排除某些永遠可用的（如果你有）
+    if (el.dataset.alwaysEnabled === "true") return;
+
+    el.disabled = !isEditable;
+  });
+}
+// ===== [新增] 安全設定值（建議用這個） =====
+function setValue(name, value, prefix = "review") {
+  const el = getField(name, prefix);
+
+  if (!el) {
+    console.warn(`找不到欄位: ${prefix}_${name}`);
+    return;
+  }
+
+  // input / textarea / select
+  if ("value" in el) {
+    el.value = value ?? "";
+  } else {
+    el.textContent = value ?? "";
+  }
+}
+// ====控制按鈕的格式========
+function renderButtons(actions) {
+  const container = document.getElementById("formActions");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  actions.forEach(action => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+
+    switch (action) {
+
+      case "approve":
+        btn.classList.add("btn-approve");
+        btn.innerHTML = `<i data-lucide="check"></i>通過`;
+        btn.onclick = () => submitReviewDecision("approve");
+        break;
+
+      case "reject":
+        btn.classList.add("btn-reject");
+        btn.innerHTML = `<i data-lucide="x"></i>退件`;
+        btn.onclick = () => submitReviewDecision("reject");
+        break;
+
+      case "pending":
+        btn.classList.add("btn-pending");
+        btn.innerHTML = `<i data-lucide="save"></i>暫存`;
+        btn.onclick = () => submitReviewDecision("pending");
+        break;
+
+      case "recall":
+        btn.classList.add("btn-recall");
+        btn.innerHTML = `<i data-lucide="rotate-ccw"></i>抽回`;
+        btn.onclick = recallReviewAction;
+        break;
+
+      case "cancel":
+        btn.classList.add("btn-recall");
+        btn.innerHTML = `<i data-lucide="square-chevron-left"></i>取消銷案`;
+        btn.onclick = cancelPassedReview;
+        break;
+
+      case "patch":
+        btn.classList.add("btn-patch");
+        btn.innerHTML = `<i data-lucide="edit"></i>補件`;
+        btn.onclick = submitEditorPatch;
+        break;
+
+      case "close":
+        btn.classList.add("btn-cancel");
+        btn.innerHTML = `關閉`;
+        btn.onclick = closeReviewModal;
+        break;
+    }
+
+    container.appendChild(btn);
+  });
+
+  if (window.lucide) {
+    lucide.createIcons();
+  }
+}
+
+//依據身分和審核狀態顯示表單底部的按鈕
+function resolveActions(role, status) {
+  // ===== 衛生局 =====
+  if (role === "衛生局") {
+    if (["not_processed", "pending", "patch"].includes(status)) {
+      return ["close", "pending", "reject", "approve"];
+    }
+    if (["rejected", "cancelled"].includes(status)) {
+      return ["close", "recall"];
+    }
+    if (["approved"].includes(status)) {
+      return ["close", "cancel"];
+    }
+  }
+  // ===== 衛生所 =====
+  else {
+    if (["rejected", "cancelled"].includes(status)) {
+      return ["close", "patch"];
+    }
+    return ["close"];
+  }
+}
+
+//鎖審核表單的按鈕
+function setActionButtonsDisabled(disabled) {
+  const container = document.getElementById("formActions");
+  if (!container) return;
+
+  container.querySelectorAll("button").forEach(btn => {
+    btn.disabled = disabled;
+  });
+}
+
+//審核表單的個案資料控制
+function setCaseMetaDisabled(disabled) {
+  const container = document.getElementById("caseMetaSection");
+  if (!container) return;
+
+  container.querySelectorAll("input, select").forEach(el => {
+    el.disabled = disabled;
+  });
+}
+
+function getUIRules(role, status) {
+  // 先找指定角色，找不到就用 default
+  const roleRules = UI_RULES[role] || UI_RULES.default;
+  if (!roleRules) return null;
+
+  for (const key in roleRules) {
+    if (roleRules[key].status.includes(status)) {
+      return roleRules[key].rules;
+    }
+  }
+  return null;
+}
+function applyAllPermissions(role, status) {
+  const rules = getUIRules(role, status);
+  if (!rules) return;
+
+  // ===== 拖曳 =====
+  if (typeof sortableMap !== "undefined") {
+    Object.values(sortableMap).forEach(instance => {
+      instance.option("disabled", rules.drag === "disable");
+    });
+  }
+
+  // ===== checkbox =====
+  document.querySelectorAll(".review-item-row input[type='checkbox']")
+    .forEach(el => {
+      el.disabled = rules.checkbox === "disable";
+    });
+
+  // ===== 新增按鈕（＋）=====
+  document.querySelectorAll("button[onclick*='addReviewItem']")
+    .forEach(el => {
+      if (rules.addButton === "hide") {
+        el.style.display = "none";
+      } else {
+        el.style.display = "";
+        el.disabled = rules.addButton === "disable";
+      }
+    });
+
+  // ===== select =====
+  document.querySelectorAll(".review-item-row select")
+    .forEach(el => {
+      el.disabled = rules.select === "disable";
+    });
+
+  // ===== textarea =====
+  document.querySelectorAll(".review-item-row textarea")
+    .forEach(el => {
+      el.disabled = rules.textarea === "disable";
+    });
+
+  // ===== 搜尋 =====
+  document.querySelectorAll(".search-review-category")
+    .forEach(el => {
+      el.style.display = rules.search === "hide" ? "none" : "";
+    });
+
+  // ===== 圖片 =====
+  document.querySelectorAll('[onclick*="handlePasteIconClick"]')
+    .forEach(el => {
+      el.style.display = rules.image === "hide" ? "none" : "";
+    });
+
+  // ===== 刪除 =====
+  document.querySelectorAll('[onclick*="removeReviewItem"]')
+    .forEach(el => {
+      el.style.display = rules.delete === "hide" ? "none" : "";
+    });
+
+  // ===== 備註 textarea =====
+  const remarkEl = document.getElementById("review_備註");
+  if (remarkEl) {
+    remarkEl.disabled = rules.remark === "disable";
+  }
+
+  // ===== caseMeta（整區） =====
+  const container = document.getElementById("caseMetaSection");
+  if (container) {
+    container.querySelectorAll("input, select").forEach(el => {
+      el.disabled = rules.caseMeta === "disable";
+    });
+  }
+}
+
+//顯示審核者資訊
+function toggleReviewMeta() {
+  const reviewer = (document.getElementById("review_最近審核者")?.textContent || "").trim();
+  const time = (document.getElementById("review_最近審核時間")?.textContent || "").trim();
+  const metaDiv = document.querySelector(".review-meta-text");
+
+  if (!metaDiv) return;
+
+  metaDiv.style.display = (reviewer || time) ? "block" : "none";
+}
+
+</script>
+
+</body>
+</html>
