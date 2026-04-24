@@ -1,0 +1,837 @@
+<!-- 審核模塊 -->
+<style>
+
+    .modal-content {
+      background-color: #fafafa;
+      border: 3px solid #aaa;
+    }
+    .form-container {
+      background-color: white;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      border-radius: 12px;
+      padding: 28px 24px 20px 24px;
+      margin: 30px auto 24px auto;
+      width: 96vw;
+      max-width: 1800px;
+    }
+    .form-container select, .form-container label {
+      margin-right: 16px;
+      font-size: 1.08rem;
+    }
+
+    /* === 主按鈕與次按鈕（統一高度、留白更舒服） === */
+    .custom-btn,
+    .custom-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 46px;               /* 稍微提高一點（比44更自然） */
+      min-width: 48px;            /* 增加最小寬度，讓純icon不會太窄 */
+      padding: 0 16px;            /* 左右留白 */
+      box-sizing: border-box;
+      font-weight: bold ;
+      font-size: 1.1rem;
+      border-radius: 0.32rem;
+      margin: 2px 8px;
+      cursor: pointer;
+      border: none;
+      transition: color 0.12s, background-color 0.12s, box-shadow 0.12s;
+    }
+
+    /* 主按鈕（橘色） */
+    .custom-btn {
+      color: #fff;
+      background-color: #2f6b87;
+      box-shadow: 0 2px 6px rgba(255, 160, 122, 0.1);
+    }
+    .custom-btn:hover {
+      background-color: #ff8c69;
+    }
+
+    /* 次按鈕（灰色） */
+    .custom-btn-secondary {
+      color: #fff;
+      background-color: #6c757d;
+    }
+    .custom-btn-secondary:hover {
+      background-color: #5a6268;
+    }
+
+    /* 審核表單標題 */
+    .modal-title-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding: 0 16px;
+    }
+
+    /* 左邊 */
+    .modal-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-title-icon {
+      font-size: 32px;
+      color: #2f6b87;
+    }
+
+    .modal-title-text {
+      font-size: 26px;
+      font-weight: 700;
+      color: #374151;
+    }
+
+    /* 右邊狀態 */
+    .modal-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* 1. 基礎對齊設定（解決上下沒對齊的良藥） */
+    .lucide-wrapper {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        vertical-align: middle;
+        line-height: 0;
+    }
+    .lucide-wrapper svg {
+        display: block;
+        transition: stroke 0.2s ease, transform 0.2s ease;
+    }
+    /* 搜尋圖示 */
+    .icon-search svg {
+        width: 1.4em;
+        height: 1.4em;
+        stroke: #1280ff
+    }
+    .icon-search:hover svg {
+        stroke: #1280ff; 
+        transform: scale(1.1); /* 稍微放大增加互動感 */
+    }
+
+    /* 資訊圖示：圓形在視覺上會顯大，稍微調小一點點才對稱 */
+    .popover-info svg {
+        stroke: #08bd08;
+        width: 1.4rem;
+        height: 1.4rem;
+        transform: translateY(-3px);
+    }
+    .popover-info:hover svg {
+        stroke: #08bd08; 
+    }
+
+    .info-popover {
+      max-width: 700px;
+      //white-space: pre-wrap;
+      //word-break: break-word;
+    }
+    /* 相機圖示 */
+    .icon-camera svg {
+        stroke: #orange;
+        width: 1.5em;
+        height: 1.4em;
+    }
+    .icon-camera:hover svg {
+        stroke: orange;
+        transform: scale(1.1);
+    }
+    /* 垃圾桶圖示：通常要醒目但不突兀 */
+    .icon-trash svg {
+        stroke: #dc3545;
+        width: 1.5em;
+        height: 1.3em;
+    }
+    .icon-trash:hover svg {
+        stroke: #dc3545;
+        transform: scale(1.1);
+    }
+    /* === 圖示與文字距離、大小統一設定 === */
+    .custom-btn i,
+    .custom-btn-secondary i,
+    .custom-btn .material-icons,
+    .custom-btn-secondary .material-icons {
+      margin-right: 8px;         /* icon 與文字的距離 */
+      font-size: 1.15em;         /* icon 稍微放大，Bootstrap 與 Material 都適用 */
+      line-height: 1;            /* 消除行高偏移 */
+      vertical-align: middle;    /* 保持垂直置中 */
+    }
+
+    .modal-title {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 2.0rem;
+      font-weight: bold;
+      color: #2f6b87;
+      margin-bottom: 12px;
+    }
+    .table-title {
+      color: #444;
+      font-size: 2rem;
+      font-weight: bold;
+      text-align: center;
+      letter-spacing: 1px;
+      margin-bottom: 18px;
+      margin-top: 0;
+    }
+    .disposal-modal {
+      background-color: white;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+      border-radius: 14px;
+      padding: 32px 38px 26px 38px;
+      margin: 0 auto;
+      max-width: 540px;
+      width: 94vw;
+      font-size: 1.16rem;
+      line-height: 1.85;
+      top: 8%;
+      left: 50%;
+      transform: translateX(-50%);
+      min-height: 520px; /* 或你想要的高度 */
+      max-height: 80vh;  /* 避免超過螢幕，必要時出現捲軸 */
+      overflow-y: auto;
+      pointer-events: none;
+      transition: opacity 0.35s cubic-bezier(.4,0,.2,1);
+    }
+    .disposal-modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .disposal-modal label {
+      display: block;
+      margin-bottom: 13px;
+      font-weight: 500;
+      font-size: 1.13rem;
+      letter-spacing: 0.01em;
+    }
+    .disposal-modal input,
+    .disposal-modal select {
+      width: 96%;
+      padding: 9px 12px;
+      margin-top: 4px;
+      margin-bottom: 16px;
+      font-size: 1.13rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      display: block;
+    }
+    .disposal-modal button {
+      margin-top: 10px;
+      margin-right: 10px;
+      font-size: 1.1rem;
+    }
+    .disposal-modal .modal-title {
+      font-size: 1.35rem;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .review-item-row input[type="checkbox"] {
+      accent-color: #17475d;
+    }
+    
+    .radio-group {
+      display: flex;
+      flex-direction: row;
+      gap: 38px;   /* 你想要的間隔，可調大調小 */
+      margin-bottom: 20px;
+      margin-top: 6px;
+    }
+    .radio-group label {
+      font-weight: 400;
+      font-size: 1.11rem;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      letter-spacing: 1px;
+    }
+    .radio-group input[type="radio"] {
+      margin-right: 7px;
+    }
+    .review-items-group {
+      padding-left: 28px; /* 或 32px，視覺調一下 */
+    }
+
+    #reviewModal .modal-content{
+    background-color: #f6f7f9;
+    }
+
+    #reviewModal .modal-body{
+    padding:1.5rem 2.8rem 0.3rem 2.8rem;
+    background-color: #f6f7f9;
+    }
+
+    #reviewModal .modal-header{
+    padding:1.5rem;
+    background-color: #f6f7f9;
+    }
+
+    #reviewModal .modal-footer{
+      background-color: #dfe1e5;
+      padding: 2.2rem;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    #msgModal_general .modal-footer {
+      display: flex;
+      gap: 16px; /* 這裡可以自由調整按鈕與按鈕之間的距離 */
+      background-color: #dfe1e5;
+      padding: 1.2rem 1.8rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    #msgModal_bureau .modal-footer {
+      display: flex;
+      gap: 16px; /* 這裡可以自由調整按鈕與按鈕之間的距離 */
+      background-color: #dfe1e5;
+      padding: 1.8rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    /* 針對特定 modal 或全域 modal-footer 設定 */
+
+    /* 同時套用到兩個 Modal 的按鈕 */
+    #msgModal_general .modal-footer .btn-clear,
+    #msgModal_general .modal-footer .btn-cancel {
+      font-size: 1.2rem;
+      padding: 5px 10px;
+      line-height: 1.2;
+      border-radius: 4px;
+      margin: 0px;
+    }
+    #msgModal_bureau .modal-footer .btn-clear,
+    #msgModal_bureau .modal-footer .btn-cancel {
+      font-size: 1.2rem;
+      padding: 10px;
+      line-height: 1.2;
+      border-radius: 4px;
+      margin: 0px;
+    }
+
+    #reviewPassedModal .modal-body {
+      padding-bottom: 0 !important;
+    }
+
+    #loadingModal {
+      z-index: 3000 !important;
+    }
+
+  /* === 通用審核項目行容器（不可逆、可逆、建議事項共用基礎） === */
+  .review-item-row {
+    display: flex;
+    align-items: center;
+    margin: 20px 0;
+    padding: 10px 20px;
+    background: #f7fbff;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+  }
+  /* === 不可逆/可逆 區塊（checklist）之間的間距與造型 === */
+  .review-item-row.checklist {
+    gap: 20px;  /* 控制所有元件間距 */
+  }
+  /* checklist 專用：氣球 icon 外觀 */
+  .review-item-row.checklist .popover-info {
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+  /* checklist 專用：核取方塊大小 */
+  .review-item-row.checklist input[type="checkbox"] {
+    transform: scale(2.0);
+  }
+  /* checklist 專用：下拉選單寬度 */
+  .review-item-row.checklist .form-select {
+    min-width: 200px;
+    max-width: 350px;
+  }
+  /* checklist 專用：文本欄寬度 */
+  .review-item-row.checklist .review-item-input {
+    border: 1px solid #e0e0e0;
+    min-width: 200px;
+    max-width: 900px;
+    flex: 1 1 180px;
+  }
+  /* checklist 專用：垃圾桶 icon 樣式 */
+  .review-item-row.checklist .delete-btn .material-icons {
+    font-size: 26px;
+    color: #e74c3c;
+  }
+
+  /* === 建議事項 區塊（suggestion）間距與造型 === */
+  .review-item-row.suggestion {
+    gap: 16px;  /* 建議事項間距可以小一點 */
+  }
+  /* suggestion 專用：核取方塊大小 */
+  .review-item-row.suggestion input[type="checkbox"] {
+    transform: scale(2.0);
+  }
+  /* suggestion 專用：文本欄寬度 */
+  .review-item-row.suggestion .review-item-input {
+    border: 1px solid #e0e0e0;
+    min-width: 200px;
+    max-width: 1000px;
+    flex: 1 1 240px;
+  }
+  
+  #reviewCategoryModal .modal-content {
+    border-radius: 18px;
+    border: 2.5px solid #ffe0b2;
+    box-shadow: 0 4px 18px rgba(120, 100, 70, 0.11);
+  }
+  #reviewCategoryModal .modal-header {
+    padding: 22px 36px 12px 36px;
+  }
+  #reviewCategoryModal .modal-body {
+    padding: 32px 38px 24px 38px;
+  }
+  #reviewCategoryModal .modal-footer {
+    padding: 16px 38px 18px 38px;
+  }
+  #reviewCategoryModal .form-control {
+    font-size: 1.08rem;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1.5px solid #ffcc80;
+  }
+  #reviewCategoryModal table th,
+  #reviewCategoryModal table td {
+    vertical-align: middle !important;
+    padding: 13px 18px !important;
+  }
+  #reviewCategoryModal table th {
+    background: #ffe082 !important;
+    color: #4d3200 !important;
+    font-weight: 700;
+    border-bottom: 2.5px solid #ffe0b2 !important;
+  }
+  #reviewCategoryModal table td {
+    background: #fff !important;
+    color: #333 !important;
+  }
+  #reviewCategoryModal table th:nth-child(2),
+  #reviewCategoryModal table td:nth-child(2) {
+    text-align: left !important;
+    word-break: break-all;
+  }
+  #reviewCategoryModal table th:nth-child(1),
+  #reviewCategoryModal table td:nth-child(1) {
+    font-weight: 700;
+    text-align: center;
+  }
+  #reviewCategoryModal table tbody tr {
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  #reviewCategoryModal table tbody tr:hover {
+    background: #fffde7 !important;
+  }
+  .review-category-link {
+    color: #1976d2;
+    text-decoration: underline;
+    font-weight: 400;
+    cursor: pointer;
+    transition: color 0.12s;
+  }
+  .review-category-link:hover {
+    color: #0d47a1;
+    text-decoration: underline;
+  }
+  .search-highlight {
+    background: #fff176;
+    color: #d17c00;
+    border-radius: 2.5px;
+    padding: 0 2px;
+    font-weight: bold;
+  }
+  .sortable-ghost {
+    opacity: 0.7;
+    background-color: #fff8e1;
+    border: 1.5px dashed #ffa726;
+  }
+
+  #successLottie svg {
+    width: 100% !important;
+    height: 100% !important;
+    transform: scale(2.5);      /* 放大倍率自己調，直到你覺得剛好 */
+    transform-origin: center;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* 統一預覽圖外觀，保留 image-preview class 給上傳功能 */
+  .image-preview {
+    border: 1px solid #dee2e6;      /* 灰色邊框 */
+    border-radius: 0.375rem;        /* 圓角 */
+    padding: 2px;                   /* 與圖片留白 */
+    background-color: #fff;         /* 白底更明顯 */
+    object-fit: contain;            /* 避免變形 */
+  }
+
+  #categoryTable td ol {
+    margin-bottom: 0;
+  }
+
+
+  .modal-action-group {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    gap: var(--btn-gap, 12px);
+    padding: 8px 0;
+
+    flex-wrap: wrap; /* 保留你原本 reviewButtons 的特性 */
+  }
+
+  .popover-body ol {
+    margin-bottom: 0;
+  }
+  /* 橘色-抽回 */
+  .btn-recall {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background-color: #f2af50;   /* 橘色（介於暫存與退件之間） */
+    color: #ffffff;
+
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-recall:hover {
+    background-color: #ec971f;
+    transform: translateY(-1px);
+  }
+
+  .btn-recall:active {
+    background-color: #d58512;
+    transform: translateY(0);
+  }
+  /* 灰色 (取消/關閉) - 使用藍灰色調顯得更專業 */
+  .btn-soft-secondary {
+      background-color: #f1f3f5 !important;
+      color: #495057 !important;
+      border-color: #dee2e6 !important;
+  }
+  .btn-soft-secondary:hover { 
+      background-color: #e9ecef !important; 
+      border-color: #adb5bd !important;
+  }
+  .btn-cancel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    background-color: transparent;   /* 無填滿 */
+    color: #6c757d;                  /* 灰字 */
+
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid #959595;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-cancel:hover {
+    background-color: #adb5bd;   /* 淺灰填滿 */
+    color: #ffffff;              /* 白字 */
+    border-color: #adb5bd;
+
+    transform: translateY(-1px);
+  }
+  .btn-cancel:active {
+    background-color: #949ea6;
+    transform: translateY(0);
+    }
+  .btn-cancel:disabled {
+    background-color: #e0e0e0;   /* 更淡灰 */
+    color: #ffffff;
+    border-color: #e0e0e0;
+    cursor: not-allowed;         /* 🚫 游標提示 */
+    transform: none;             /* ❗避免殘留 hover 位移 */
+  }
+  /* 暫存按鈕 */
+  .btn-pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background-color: #8bcde000;  
+    color: #5aa6b8;             
+
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid #5aa6b8;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-pending:hover {
+    background-color: #5aa6b8;   
+    color: #ffffff;             
+
+    border-color: #5aa6b8;
+    transform: translateY(-1px);
+  }
+  .btn-pending:active {
+    background-color: #4a95a6;
+    transform: translateY(0);
+  }
+
+  /* 紅色 (退件/刪除) - 強化粉紅感為淺紅感 */
+  .btn-reject {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background-color: #dc3545;  /* 只改這裡 */
+    color: #ffffff;
+
+    padding: 10px 18px;         /* 完全一致 */
+    border-radius: 8px;
+    border: none;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); /* 一樣 */
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-reject:hover {
+    background-color: #c82333;  /* 深一點紅 */
+    transform: translateY(-1px);
+  }
+
+  .btn-reject:active {
+    background-color: #b31d2b;
+    transform: translateY(0);
+  }
+
+  /*紅色(清除內容)*/
+  .btn-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background-color: #8bcde000;  
+    color: #dd4f4f;             
+
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid #dd4f4f;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-clear:hover {
+    background-color: #dd4f4f;   
+    color: #ffffff;             
+
+    border-color: #dd4f4f;
+    transform: translateY(-1px);
+  }
+  .btn-clear:active {
+    background-color: #dd4f4f;
+    transform: translateY(0);
+  }
+
+  /* 綠色 (通過) */
+  .btn-approve {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background-color: #2f5d73;
+    color: #ffffff;
+
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-approve:hover {
+    background-color: #274f62;
+    transform: translateY(-1px);
+  }
+  .btn-approve:active {
+    background-color: #1f3f4d;
+    transform: translateY(0);
+  }
+  #submitExamBtn:disabled {
+    background-color: #ccc;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+  /*綠色-補件*/
+  .btn-patch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+
+    background-color: #498800;
+    color: #ffffff;
+
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .btn-patch:hover {
+    background-color: #096804;
+    transform: translateY(-1px);
+  }
+
+  .btn-patch:active {
+    background-color: #096804;
+    transform: translateY(0);
+  }
+  .btn-patch:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+.alert-note{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 16px;
+  background: #fff3cd;
+  border-left: 4px solid red;
+  border-radius: 6px;
+  color: #7a5c00;
+  margin: 18px 0;
+}
+
+.alert-note::before{
+  content:"⚠";
+  color:red;
+}
+
+.alert-note b{
+  color:red;
+}
+
+.form-check-inline {
+  display: inline-block;
+  margin-right: 2rem;
+}
+
+.form-check-input:checked {
+    background-color: #1B4965;
+    border-color: #1B4965;
+}
+
+input[type="radio"]{
+    transform: scale(1.2);
+}
+
+input[type="radio"]:focus{
+    outline: none;
+    box-shadow: none;
+}
+
+input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.section-title{
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: bolder;
+  color: #374151;
+}
+
+.add-btn{
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #4b80a0;
+  border-radius: 4px;
+  background: #eef2ff00;
+  color: #4b80a0;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-btn:hover{
+  border: 1px solid #4b80a0;
+  background: #4b80a0;
+  color: white;
+}
+
+#confirmPasteImage svg {
+  width: 20px;
+  height: 20px;
+}
+
+// 審核表單右上角狀態樣式
+.modal-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.modal-status-processing { color: #8e24aa; background-color: #f8dfff}
+.modal-status-approved { color: #16a34a; background-color: #d0ffc4}
+.modal-status-reject { color: #dc2626; background-color: #ffdada}
+.modal-status-patch { color: #2563eb; background-color: #d3e1ff}
+.modal-status-notprocessed { color: #ff9800; background-color: #ffeed5}
+.modal-status-cancelled { color: #6b727c; background-color: #e7e9ed}
+
+.review-meta-text {
+  text-align: right;
+  font-size: 16px;
+  color: black;
+  letter-spacing: 0.5px;
+}
+</style>
